@@ -1,6 +1,7 @@
 {
     "version": "0.2.0",
     "configurations": [
+        
         {
             "name": "Python: FastAPI",
             "type": "python",
@@ -17,6 +18,12 @@
             ],
             "jinja": true,
             "justMyCode": true
+        },
+        {
+            "name": "Debug Unit Test",
+            "type": "python",
+            "request": "test",
+            "justMyCode": false,
         }
     ]
 }
