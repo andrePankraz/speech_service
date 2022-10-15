@@ -1,7 +1,12 @@
+'''
+This file was created by ]init[ AG 2022.
+
+Module for Speech Service.
+'''
 from fastapi import FastAPI, Form, UploadFile, WebSocket
 from fastapi.staticfiles import StaticFiles
 import logging
-from nllb_manager import NllbManager, nllb_languages
+from nllb_manager import NllbManager, LANGUAGES
 import os
 from pathlib import Path
 from pydantic import BaseModel
@@ -41,7 +46,7 @@ class LanguagesResponse(BaseModel):
 
 @app.get('/languages', response_model=List[LanguagesResponse])
 async def languages() -> List[LanguagesResponse]:
-    return [LanguagesResponse(language_id=k, language_name=v[0]) for k, v in nllb_languages.LANGUAGES.items()]
+    return [LanguagesResponse(language_id=k, language_name=v[0]) for k, v in LANGUAGES.items()]
 
 
 class IdentityLanguageRequest(BaseModel):
@@ -94,10 +99,10 @@ def transcribe(path: Path, tgt_lang: Optional[str] = None) -> TranscriptionRespo
     whisper_manager = WhisperManager()
     result = whisper_manager.transcribe(str(path))
     # convert whisper language codes into Flores-200 language codes for NLLB
-    src_lang = next(k for k, v in nllb_languages.LANGUAGES.items()
+    src_lang = next(k for k, v in LANGUAGES.items()
                     if v[1] == result.language)
 
-    if tgt_lang == src_lang or not tgt_lang in nllb_languages.LANGUAGES:
+    if tgt_lang == src_lang or not tgt_lang in LANGUAGES:
         # target language is fine, nothing to do
         return TranscriptionResponse(segments=result.segments, src_lang=src_lang)
 

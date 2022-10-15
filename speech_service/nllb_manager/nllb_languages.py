@@ -1,3 +1,8 @@
+'''
+This file was created by ]init[ AG 2022.
+
+Module for NLLB-Languages.
+'''
 LANGUAGES = {
     # 'Flores200 Language Id': ['Language Name', 'Whisper Language Id']
     # Flores see: https://github.com/facebookresearch/flores/tree/main/flores200

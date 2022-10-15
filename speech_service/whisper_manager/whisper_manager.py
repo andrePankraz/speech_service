@@ -1,3 +1,8 @@
+'''
+This file was created by ]init[ AG 2022.
+
+Module for Model "Whisper".
+'''
 import logging
 import os
 from pydantic import BaseModel

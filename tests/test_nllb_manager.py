@@ -1,6 +1,10 @@
+'''
+This file was created by ]init[ AG 2022.
+
+Tests for NllbManager.
+'''
 import logging
-from speech_service.nllb_manager import NllbManager
-import sys
+from nllb_manager import NllbManager
 
 logger = logging.getLogger(__name__)
 

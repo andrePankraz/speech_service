@@ -1,12 +1,18 @@
+'''
+This file was created by ]init[ AG 2022.
+
+Module for Model "No Language Left Behind" (NLLB).
+'''
+from nllb_manager.download import download
 import fasttext
 import logging
 import os
 from pydantic import BaseModel
 import sys
 from timeit import default_timer as timer
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
 from typing import List
 import torch
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -50,7 +56,9 @@ class NllbManager:
 
         # Load 2nd model for Language Identification (LID):
         # https://github.com/facebookresearch/fairseq/tree/nllb#lid-model
-        # wget https://dl.fbaipublicfiles.com/nllb/lid/lid218e.bin
+
+        download("https://dl.fbaipublicfiles.com/nllb/lid/lid218e.bin",
+                 os.environ.get('MODEL_FOLDER') + "/lid218e.bin")
         self.lid_model = fasttext.load_model(
             os.environ.get('MODEL_FOLDER') + "/lid218e.bin")
 
