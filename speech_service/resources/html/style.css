@@ -1,0 +1,17 @@
+.dropzone {
+    width: 75%;
+    height: 200px;
+    background: white;
+    margin: 10px;
+    padding: 10px;
+    border-style: dotted;
+}
+  
+.dropzone.dragover {
+  background-color: gray;
+  border-style: solid;
+}
+
+#output {
+  white-space: pre-wrap;
+}

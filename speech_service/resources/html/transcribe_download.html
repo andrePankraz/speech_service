@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="simple.css" />
+  <link rel="stylesheet" href="style.css" />
+  <title>Speech Tests</title>
+
+  <script>
+    const zeroPad = (num, places) => String(num).padStart(places, '0')
+
+    const format_srt_timestamp = (seconds) => {
+      milliseconds = Math.round(seconds * 1000.0)
+
+      hours = Math.floor(milliseconds / 3_600_000)
+      milliseconds -= hours * 3_600_000
+
+      minutes = Math.floor(milliseconds / 60_000)
+      milliseconds -= minutes * 60_000
+
+      seconds = Math.floor(milliseconds / 1_000)
+      milliseconds -= seconds * 1_000
+
+      return `${zeroPad(hours, 2)}:${zeroPad(minutes, 2)}:${zeroPad(seconds, 2)},${zeroPad(milliseconds, 3)}`
+    }
+
+    const upload = (url) => {
+      submit_btn.disabled = true
+      src_lang.value = ''
+      tgt_text.textContent = ''
+
+      fetch('/transcribe_download/', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url: src_url.value, tgt_lang: tgt_lang.value })
+      })
+        .then((res) => res.json())
+        .then((json) => {
+          src_lang.value = json.src_lang
+          let srt = ''
+          for (i = 0; i < json.segments.length; i++) {
+            const segment = json.segments[i]
+            srt += segment.id + 1 + '\n'
+            srt += format_srt_timestamp(segment.start) + ' --> ' + format_srt_timestamp(segment.end) + '\n'
+            srt += segment.text + '\n\n'
+          }
+          tgt_text.textContent = srt
+          submit_btn.disabled = false
+        })
+        .catch(() => {
+          (error) => console.log(error)
+          submit_btn.disabled = false
+        })
+    }
+
+    window.onload = function () {
+      const src_url = document.getElementById('src_url')
+      const submit_btn = document.getElementById('submit_btn')
+      const src_lang = document.getElementById('src_lang')
+      const tgt_lang = document.getElementById('tgt_lang')
+      const tgt_text = document.getElementById('tgt_text')
+      // URL Enter event
+      on_submit = (event) => {
+        if (!src_url.checkValidity()) {
+          alert('Please enter a valid Youtube Link!')
+          return
+        }
+        upload(src_url.value)
+      }
+      src_url.addEventListener('keyup', (event) => {
+        if (event.key == 'Enter') {
+          on_submit(event)
+        }
+      })
+      // URL change event
+      src_url.addEventListener('input', (event) => {
+        src_lang.value = ''
+        tgt_text.textContent = ''
+      })
+      // submit action
+      submit_btn.addEventListener('click', on_submit)
+      // init language dropdowns
+      fetch('/languages', {
+        headers: {
+          'Accept': 'application/json'
+        }
+      })
+        .then((res) => res.json())
+        .then((json) => {
+          for (let i = 0; i < json.length; i++) {
+            const obj = json[i]
+            const el = document.createElement('option')
+            el.value = obj.language_id
+            el.textContent = obj.language_name
+            src_lang.appendChild(el)
+            tgt_lang.appendChild(el.cloneNode(true))
+          }
+        })
+        .catch(
+          (error) => console.log(error)
+        )
+      // target language change event
+      tgt_lang.addEventListener('change', (event) => {
+        tgt_text.textContent = ''
+      })
+    }
+  </script>
+</head>
+
+<body>
+  <h1>Transcribe Download</h1>
+  <p>In the following Demo you can enter a Youtube Link (normal YT Videos or YT Shorts) and get a transcription.
+    Please don't use links to files with multiple minutes of content, this would take a long time for uploading,
+    processing etc. in this Demo instance.<br>
+    Example: https://www.youtube.com/watch?v=ahmPEzHAD1s</p>
+  <label for="src_url">Enter a Youtube Video URL:</label>
+  <input id="src_url" type="url" placeholder="https://www.youtube.com/watch?v=ahmPEzHAD1s"
+    pattern="https://www.youtube.com/(watch\?v=.*|shorts/.*)" size="100" required>
+  <button id="submit_btn">Submit</button>
+  <label for="src_lang">Source language:</label>
+  <select id="src_lang" disabled>
+    <option value="">Will be autodetected...</option>
+  </select>
+  <label for="tgt_lang">Target language:</label>
+  <select id="tgt_lang">
+    <option value="">No translation...</option>
+  </select>
+  <label for="tgt_text">Transcription:</label>
+  <pre id="tgt_text"></pre>
+</body>
+
+</html>

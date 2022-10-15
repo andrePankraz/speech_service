@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="simple.css" />
+  <link rel="stylesheet" href="style.css" />
+  <title>Speech Tests</title>
+
+  <script>
+    function translate() {
+      fetch('/translate/', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ texts: src_text.value.split('\n'), tgt_lang: tgt_lang.value })
+      })
+        .then((res) => res.json())
+        .then((json) => {
+          src_lang.value = json.src_lang
+          tgt_text.value = json.texts.join('\n')
+        })
+        .catch(
+          (error) => console.log(error)
+        )
+    }
+    window.onload = function () {
+      const src_text = document.getElementById('src_text')
+      const src_lang = document.getElementById('src_lang')
+      const tgt_lang = document.getElementById('tgt_lang')
+      const tgt_text = document.getElementById('tgt_text')
+      const switch_btn = document.getElementById('switch_btn')
+      // init language dropdowns
+      fetch('/languages', {
+        headers: {
+          'Accept': 'application/json'
+        }
+      })
+        .then((res) => res.json())
+        .then((json) => {
+          for (let i = 0; i < json.length; i++) {
+            const obj = json[i]
+            const el = document.createElement('option')
+            el.value = obj.language_id
+            el.textContent = obj.language_name
+            src_lang.appendChild(el)
+            tgt_lang.appendChild(el.cloneNode(true))
+          }
+          tgt_lang.value = 'deu_Latn'
+        })
+        .catch(
+          (error) => console.log(error)
+        )
+      // init change events
+      const on_change = (event) => {
+        clearTimeout(this.timeoutId)
+        this.timeoutId = setTimeout(translate.bind(this), 2000)
+      }
+      src_text.addEventListener('input', on_change)
+      tgt_lang.addEventListener('change', on_change)
+      // switch languages action
+      switch_btn.addEventListener('click', (event) => {
+        if (!src_lang.value) {
+          return
+        }
+        clearTimeout(this.timeoutId)
+        src_text.value = tgt_text.value
+        tgt_lang.value = src_lang.value
+        src_lang.value = ''
+        tgt_text.value = ''
+        this.timeoutId = setTimeout(translate.bind(this), 2000)
+      })
+    }
+  </script>
+</head>
+
+<body>
+  <h1>Translate</h1>
+  <label for="src_text">Source text:</label>
+  <textarea id="src_text" name="src_text" rows="10" placeholder="Enter some text..."></textarea>
+  <label for="src_lang">Source language:</label>
+  <select id="src_lang" disabled>
+    <option value="">Will be autodetected...</option>
+  </select>
+  <label for="tgt_lang">Target language:</label>
+  <select id="tgt_lang">
+  </select>
+  <label for="tgt_text">Translated text:</label>
+  <textarea id="tgt_text" name="tgt_text" rows="10" disabled></textarea>
+  <button id="switch_btn">Switch</button>
+</body>
+
+</html>

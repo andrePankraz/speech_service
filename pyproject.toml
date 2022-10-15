@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+
+[project]
+name = "speech_service"
+version = "0.0.1"
+authors = [
+  { name="André Pankraz", email="andre@pankraz.de" },
+]
+description = "A speech service using AI with current models like Whisper, NLLB etc."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dynamic = ["dependencies", "optional-dependencies.tests"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["docker/python/requirements.txt"]}
+optional-dependencies.tests = {file = ["docker/python/requirements-dev.txt"]}
+
+[project.urls]
+"Homepage" = "https://github.com/todo/sampleproject"
+"Bug Tracker" = "https://github.com/todo/sampleproject/issues"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q -s --log-cli-level=DEBUG"
+testpaths = [
+    "tests"
+]

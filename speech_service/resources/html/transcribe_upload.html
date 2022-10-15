@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="simple.css" />
+  <link rel="stylesheet" href="style.css" />
+  <title>Speech Tests</title>
+
+  <script>
+    const zeroPad = (num, places) => String(num).padStart(places, '0')
+
+    const format_srt_timestamp = (seconds) => {
+      milliseconds = Math.round(seconds * 1000.0)
+
+      hours = Math.floor(milliseconds / 3_600_000)
+      milliseconds -= hours * 3_600_000
+
+      minutes = Math.floor(milliseconds / 60_000)
+      milliseconds -= minutes * 60_000
+
+      seconds = Math.floor(milliseconds / 1_000)
+      milliseconds -= seconds * 1_000
+
+      return `${zeroPad(hours, 2)}:${zeroPad(minutes, 2)}:${zeroPad(seconds, 2)},${zeroPad(milliseconds, 3)}`
+    }
+
+    const upload = (file) => {
+      src_file.textContent = `${file.name}\n(${file.size} Byte, Type: ${file.type})`
+      src_lang.value = ''
+      tgt_text.textContent = ''
+
+      const formData = new FormData()
+      formData.append('file', file)
+      if (tgt_lang.value) {
+        formData.append('tgt_lang', tgt_lang.value)
+      }
+      fetch('/transcribe_upload/', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json'
+        },
+        body: formData,
+      })
+        .then((res) => res.json())
+        .then((json) => {
+          src_lang.value = json.src_lang
+          let srt = ''
+          for (i = 0; i < json.segments.length; i++) {
+            const segment = json.segments[i]
+            srt += segment.id + 1 + '\n'
+            srt += format_srt_timestamp(segment.start) + ' --> ' + format_srt_timestamp(segment.end) + '\n'
+            srt += segment.text + '\n\n'
+          }
+          tgt_text.textContent = srt
+        })
+        .catch(
+          (error) => console.log(error)
+        )
+    }
+
+    window.onload = function () {
+      const file_upload = document.getElementById("file_upload")
+      const file_drop = document.getElementById("file_drop")
+      const src_file = document.getElementById('src_file')
+      const src_lang = document.getElementById('src_lang')
+      const tgt_lang = document.getElementById('tgt_lang')
+      const tgt_text = document.getElementById('tgt_text')
+      // init file select action
+      file_upload.addEventListener("change", (event) => {
+        upload(file_upload.files[0])
+        file_upload.value = null
+      })
+      // init dropdown action
+      file_drop.ondragenter = (event) => {
+        event.stopPropagation()
+        event.preventDefault()
+        if (event.target.classList.contains("dropzone")) {
+          event.target.classList.add("dragover")
+        }
+      }
+      file_drop.ondragleave = (event) => {
+        event.stopPropagation()
+        event.preventDefault()
+        if (event.target.classList.contains("dropzone")) {
+          event.target.classList.remove("dragover")
+        }
+      }
+      file_drop.ondragover = (event) => {
+        event.stopPropagation()
+        event.preventDefault()
+      }
+      file_drop.ondrop = (event) => {
+        event.stopPropagation()
+        event.preventDefault()
+        if (event.target.classList.contains("dropzone")) {
+          event.target.classList.remove("dragover")
+        }
+        const dt = event.dataTransfer
+        const files = dt.files
+        const count = files.length
+        upload(files[0])
+      }
+      // init language dropdowns
+      fetch('/languages', {
+        headers: {
+          'Accept': 'application/json'
+        }
+      })
+        .then((res) => res.json())
+        .then((json) => {
+          for (let i = 0; i < json.length; i++) {
+            const obj = json[i]
+            const el = document.createElement('option')
+            el.value = obj.language_id
+            el.textContent = obj.language_name
+            src_lang.appendChild(el)
+            tgt_lang.appendChild(el.cloneNode(true))
+          }
+        })
+        .catch(
+          (error) => console.log(error)
+        )
+      // init change events
+      tgt_lang.addEventListener('change', (event) => {
+        src_file.textContent = ''
+        src_lang.value = ''
+        tgt_text.textContent = ''
+      })
+    }
+  </script>
+</head>
+
+<body>
+  <h1>Transcribe Upload</h1>
+  <p>In the following Demo you can upload a File with Audio content (could also be a Video) and get a transcription.
+    Please don't use files with multiple minutes of content, this would take a long time for uploading, processing
+    etc. in this Demo instance.</p>
+  <label for="file_upload">Open a File with Audio:</label>
+  <input id="file_upload" type="file" />
+  <div id="file_drop" class="dropzone">Drop a File with Audio here</div>
+  <label for="src_file">Source file:</label>
+  <pre id="src_file"></pre>
+  <label for="src_lang">Source language:</label>
+  <select id="src_lang" disabled>
+    <option value="">Will be autodetected...</option>
+  </select>
+  <label for="tgt_lang">Target language:</label>
+  <select id="tgt_lang">
+    <option value="">No translation...</option>
+  </select>
+  <label for="tgt_text">Transcription:</label>
+  <pre id="tgt_text"></pre>
+</body>
+
+</html>

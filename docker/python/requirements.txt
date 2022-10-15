@@ -1,0 +1,7 @@
+fastapi
+fasttext
+python-multipart
+shortuuid
+uvicorn
+whisper@git+https://github.com/openai/whisper.git
+yt-dlp
