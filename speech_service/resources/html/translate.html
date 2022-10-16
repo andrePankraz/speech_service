@@ -8,7 +8,7 @@
   <title>Speech Tests</title>
 
   <script>
-    function translate() {
+    const translate = () => {
       fetch('/translate/', {
         method: 'POST',
         headers: {
@@ -26,7 +26,7 @@
           (error) => console.log(error)
         )
     }
-    window.onload = function () {
+    window.onload = async () => {
       const src_text = document.getElementById('src_text')
       const src_lang = document.getElementById('src_lang')
       const tgt_lang = document.getElementById('tgt_lang')

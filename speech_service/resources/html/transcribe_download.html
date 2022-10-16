@@ -57,7 +57,7 @@
         })
     }
 
-    window.onload = function () {
+    window.onload = async () => {
       const src_url = document.getElementById('src_url')
       const submit_btn = document.getElementById('submit_btn')
       const src_lang = document.getElementById('src_lang')
@@ -114,7 +114,7 @@
 <body>
   <h1>Transcribe Download</h1>
   <p>In the following Demo you can enter a Youtube Link (normal YT Videos or YT Shorts) and get a transcription.
-    Please don't use links to files with multiple minutes of content, this would take a long time for uploading,
+    Please don't use links to files with multiple minutes of content, this would take a long time for downloading,
     processing etc. in this Demo instance.<br>
     Example: https://www.youtube.com/watch?v=ahmPEzHAD1s</p>
   <label for="src_url">Enter a Youtube Video URL:</label>
