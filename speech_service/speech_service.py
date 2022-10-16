@@ -20,8 +20,8 @@ from whisper_manager import WhisperManager
 import yt_dlp
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 
 app = FastAPI()
 
@@ -59,7 +59,7 @@ class IdentityLanguageResponse(BaseModel):
 
 @app.post('/identitfy_language/', response_model=IdentityLanguageResponse)
 def identitfy_language(req: IdentityLanguageRequest) -> IdentityLanguageResponse:
-    logger.info(f"Identitfy language: {req=}")
+    log.info(f"Identitfy language: {req=}")
     nllb_manager = NllbManager()
     language = nllb_manager.identify_language(req.text)
     return IdentityLanguageResponse(language=language)
@@ -79,7 +79,7 @@ class TranslationResponse(BaseModel):
 
 @app.post('/translate/', response_model=TranslationResponse)
 def translate(req: TranslationRequest) -> TranslationResponse:
-    logger.info(f"Translate: {req=}")
+    log.info(f"Translate: {req=}")
     nllb_manager = NllbManager()
     if req.src_lang != None:
         src_lang = req.src_lang
@@ -117,7 +117,7 @@ def transcribe(path: Path, tgt_lang: Optional[str] = None) -> TranscriptionRespo
 
 @app.post('/transcribe_upload/', response_model=TranscriptionResponse)
 def transcribe_upload(file: UploadFile, tgt_lang: Optional[str] = Form(None)) -> TranscriptionResponse:
-    logger.info(f"Transcribe Upload: {file.filename}")
+    log.info(f"Transcribe Upload: {file.filename}")
     start = timer()
 
     filepath = save_upload_file_tmp(file)
@@ -126,7 +126,7 @@ def transcribe_upload(file: UploadFile, tgt_lang: Optional[str] = Form(None)) ->
     finally:
         filepath.unlink()  # Delete the temp file
 
-    logger.info(
+    log.info(
         f"Transcribed Upload {file.filename!r} in {timer() - start:.3f}s")
     return result
 
@@ -138,7 +138,7 @@ class TranscriptionRequest(BaseModel):
 
 @app.post('/transcribe_download/', response_model=TranscriptionResponse)
 def transcribe_download(req: TranscriptionRequest) -> TranscriptionResponse:
-    logger.info(f"Transcribe Download: {req.url}")
+    log.info(f"Transcribe Download: {req.url}")
     start = timer()
     # see https://github.com/ytdl-org/youtube-dl/blob/3e4cedf9e8cd3157df2457df7274d0c842421945/youtube_dl/YoutubeDL.py#L137-L312
 
@@ -149,12 +149,12 @@ def transcribe_download(req: TranscriptionRequest) -> TranscriptionResponse:
         if e['status'] == 'downloading':
             pass  # logger.info(f"    ...downloading... {e=}")
         elif e['status'] == 'finished':
-            logger.info(f"    ...downloading finished: {e['filename']}")
+            log.info(f"    ...downloading finished: {e['filename']}")
             filepath = Path(e['filename'])
         elif e['status'] == 'error':
-            logger.info(f"    ...download error: {e=}")
+            log.info(f"    ...download error: {e=}")
 
-    logger.info(f"  Downloading {req.url!r}...")
+    log.info(f"  Downloading {req.url!r}...")
     ydl_opts = {
         # %{title}
         'outtmpl': f"/opt/speech_service/uploads/%(id)s{shortuuid.uuid()}.%(ext)s",
@@ -163,14 +163,14 @@ def transcribe_download(req: TranscriptionRequest) -> TranscriptionResponse:
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([req.url])
-    logger.info(f"  ...downloaded {req.url!r} as {filepath!r}...")
+    log.info(f"  ...downloaded {req.url!r} as {filepath!r}...")
 
     try:
         result = transcribe(filepath, req.tgt_lang)
     finally:
         filepath.unlink()  # Delete the temp file
 
-    logger.info(
+    log.info(
         f"Transcribed Download {req.url!r} in {timer() - start:.3f}s")
     return result
 

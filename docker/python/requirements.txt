@@ -1,6 +1,7 @@
 fastapi
 fasttext
 python-multipart
+sentence_cleaner_splitter@git+https://github.com/facebookresearch/LASER.git#subdirectory=utils
 shortuuid
 uvicorn
 whisper@git+https://github.com/openai/whisper.git
