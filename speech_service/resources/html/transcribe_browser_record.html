@@ -9,63 +9,57 @@
 
   <script>
     const startAudio = async (context, meterElement) => {
-      await context.audioWorklet.addModule('transcribe_browser_record_processor.js');
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const micNode = context.createMediaStreamSource(mediaStream);
-      const transcribeBrowserRecordNode = new AudioWorkletNode(context, 'transcribe_browser_record_processor');
-      transcribeBrowserRecordNode.port.onmessage = ({ data }) => {
-        meterElement.value = data * 500;
-      };
-      micNode.connect(transcribeBrowserRecordNode).connect(context.destination);
-    };
+      context.audioWorklet.addModule('transcribe_browser_record_processor.js')
+        .catch(console.error)
+        .then(() => {
+          console.log('added worklet module')
+          navigator.mediaDevices.getUserMedia({ audio: true })
+            .catch(console.error)
+            .then(stream => {
+              const audioTracks = stream.getAudioTracks()
+              if (audioTracks.length !== 1) {
+                throw new Error('Too many tracks!')
+              }
+              const audioTrack = audioTracks[0]
+              // console.log(audioTrack.getCapabilities()); // output capabilities
+              const constraints = {
+                audio: {
+                  channelCount: 1,
+                  sampleRate: 16000,
+                  sampleSize: 16
+                }
+              }
+              audioTrack.applyConstraints(constraints)
+                .catch(console.error)
+                .then(() => {
+                  const micNode = context.createMediaStreamSource(stream)
+                  const transcribeBrowserRecordNode = new AudioWorkletNode(context, 'transcribe_browser_record_processor')
+                  transcribeBrowserRecordNode.port.onmessage = (e) => {
+                    if (e.data.eventType === "buffer") {
+                      console.log("BUFFY: " + e.data.buffer.length)
+                    }
+                    if (e.data.eventType === "volume") {
+                      meterElement.value = e.data.volume * 500
+                    }
+                  }
+                  micNode.connect(transcribeBrowserRecordNode).connect(context.destination)
+                })
+            })
+        })
+    }
 
     window.onload = async () => {
-      const buttonEl = document.getElementById('button-start');
-      const meterEl = document.getElementById('volume-meter');
-      buttonEl.disabled = false;
-      meterEl.disabled = false;
+      const buttonEl = document.getElementById('button-start')
+      const meterEl = document.getElementById('volume-meter')
+      buttonEl.disabled = false
+      meterEl.disabled = false
       buttonEl.addEventListener('click', async () => {
-        let audioContext = new AudioContext();
-        await startAudio(audioContext, meterEl);
-        audioContext.resume();
-        buttonEl.disabled = true;
-        buttonEl.textContent = 'Playing...';
-      }, false);
-      // const status = document.getElementById('status')
-      // const transcript = document.getElementById('transcript')
-
-      // navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-      //   if (!MediaRecorder.isTypeSupported('audio/webm'))
-      //     return alert('Browser not supported')
-      //   const mediaRecorder = new MediaRecorder(stream, {
-      //     mimeType: 'audio/webm'
-      //   })
-      //   const socket = new WebSocket('ws://localhost:8200/transcribe_stream/')
-      //   socket.onopen = () => {
-      //     status.textContent = 'Connected'
-      //     console.log({ event: 'onopen' })
-      //     mediaRecorder.addEventListener('dataavailable', async (event) => {
-      //       if (event.data.size > 0 && socket.readyState == 1) {
-      //         socket.send(event.data)
-      //       }
-      //     })
-      //     mediaRecorder.start(5000)
-      //   }
-      //   socket.onmessage = (message) => {
-      //     const received = message.data
-      //     if (received) {
-      //       console.log(received)
-      //       transcript.textContent += ' ' + received
-      //     }
-      //   }
-      //   socket.onclose = () => {
-      //     console.log({ event: 'onclose' })
-      //     status.textContent = 'Disconnected'
-      //   }
-      //   socket.onerror = (error) => {
-      //     console.log({ event: 'onerror', error })
-      //   }
-      // })
+        let audioContext = new AudioContext()
+        await startAudio(audioContext, meterEl)
+        audioContext.resume()
+        buttonEl.disabled = true
+        buttonEl.textContent = 'Playing...'
+      }, false)
     }
   </script>
 </head>

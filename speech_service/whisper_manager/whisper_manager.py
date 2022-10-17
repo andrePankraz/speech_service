@@ -55,7 +55,7 @@ class WhisperManager:
                 vram = round(mem_info[1]/1024**3, 1)
                 log.info(
                     f"VRAM available: {round(mem_info[0]/1024**3,1)} GB out of {vram} GB")
-                if (vram > 4):
+                if (vram >= 4):
                     self.device = 'cuda:0'
                     model_name = 'large' if vram >= 16 else 'medium' if vram >= 10 else 'small' if vram >= 8 else 'base'
             model_folder = os.environ.get('MODEL_FOLDER')

@@ -58,7 +58,7 @@ class NllbManager:
                 vram = round(mem_info[1]/1024**3, 1)
                 log.info(
                     f"VRAM available: {round(mem_info[0]/1024**3,1)} GB out of {vram} GB")
-                if (vram > 4):
+                if (vram >= 4):
                     self.device = 'cuda:0'
                     model_name = 'facebook/nllb-200-3.3B' if vram >= 16 else 'facebook/nllb-200-distilled-1.3B' if vram >= 8 else 'facebook/nllb-200-distilled-600M'
             model_folder = os.environ.get('MODEL_FOLDER')
