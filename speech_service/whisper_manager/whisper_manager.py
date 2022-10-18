@@ -4,13 +4,14 @@ This file was created by ]init[ AG 2022.
 Module for Model "Whisper".
 '''
 import logging
+import numpy as np
 import os
 from pydantic import BaseModel
 import sys
 import threading
 from timeit import default_timer as timer
 import torch
-from typing import List
+from typing import List, Union
 import whisper
 
 log = logging.getLogger(__name__)
@@ -70,13 +71,16 @@ class WhisperManager:
                 log.info(
                     f"VRAM left: {round(torch.cuda.mem_get_info(0)[0]/1024**3,1)} GB")
 
-    def transcribe(self, filename: str) -> WhisperResult:
-        log.info(f"Transcribing {filename =}...")
+    def transcribe(self, audio: Union[str, np.ndarray, torch.Tensor, bytes]) -> WhisperResult:
+        log.info(f"Transcribing...")
         start = timer()
+
+        if isinstance(audio, bytes):
+            audio = np.frombuffer(audio, np.float32).flatten()
         # Whisper can also directly translate via parameter: task='translate'
         # but quality is much worse than NLLB
         with WhisperManager.lock:
-            results = self.model.transcribe(filename)
+            results = self.model.transcribe(audio)
         log.info(f"...done in {timer() - start:.3f}s")
         segments = [WhisperSegment(
             id=s['id'], start=s['start'], end=s['end'], text=s['text'].strip()) for s in results['segments']]

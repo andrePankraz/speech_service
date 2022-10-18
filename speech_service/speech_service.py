@@ -174,16 +174,18 @@ def transcribe_download(req: TranscriptionRequest) -> TranscriptionResponse:
         f"Transcribed Download {req.url!r} in {timer() - start:.3f}s")
     return result
 
-
-# see https://github.com/deepgram-devs/live-transcription-fastapi
-@app.websocket("/transcribe_stream/")
+@app.websocket("/transcribe_record/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    whisper_manager = WhisperManager()
 
     try:
         while True:
-            data = await websocket.receive_bytes()
-            await websocket.send_text('TEST')
+            data: bytes = await websocket.receive_bytes()
+            result = whisper_manager.transcribe(data)
+            log.info(f"TEST {result=}")
+            if result.segments:
+                await websocket.send_text(result.segments[0].text)
     except Exception as e:
         raise Exception(f'Could not process audio: {e}')
     finally:
