@@ -8,41 +8,51 @@
   <title>Speech Tests</title>
 
   <script>
-    const startAudio = async (context, meterElement) => {
-      context.audioWorklet.addModule('js/RecorderProcessor.js')
-        .catch(console.error)
+    const startAudio = async (audioCtx, meterElement) => {
+      audioCtx.audioWorklet.addModule('js/RecorderProcessor.js')
+        .catch((err) => {
+          console.log(`The following audioWorklet.addModule error occurred: ${err}`);
+        })
         .then(() => {
           navigator.mediaDevices.getUserMedia({ audio: true })
-            .catch(console.error)
+            .catch((err) => {
+              console.log(`The following mediaDevices.getUserMedia error occurred: ${err}`);
+            })
             .then(stream => {
               const audioTracks = stream.getAudioTracks()
               if (audioTracks.length !== 1) {
                 throw new Error('Too many tracks!')
               }
               const audioTrack = audioTracks[0]
-              // console.log(audioTrack.getCapabilities()); // output capabilities
-              const constraints = {
-                audio: {
-                  channelCount: 1,
-                  sampleRate: 16000,
-                  sampleSize: 16
-                }
+
+              const recorder = audioCtx.createMediaStreamSource(stream)
+              // const gain = audioCtx.createGain()
+              // gain.gain.setValueAtTime(10, audioCtx.currentTime)
+              const compressor = audioCtx.createDynamicsCompressor()
+              compressor.threshold.setValueAtTime(-50, audioCtx.currentTime);
+              compressor.knee.setValueAtTime(40, audioCtx.currentTime);
+              compressor.ratio.setValueAtTime(12, audioCtx.currentTime);
+              compressor.attack.setValueAtTime(0, audioCtx.currentTime);
+              compressor.release.setValueAtTime(0.25, audioCtx.currentTime);
+
+              const recorderWorklet = new AudioWorkletNode(audioCtx, 'recorder.worklet')
+
+              var ws = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/transcribe_record/ws");
+              ws.addEventListener('error', (e) => {
+                console.log('WebSocket error: ', e);
+              })
+              ws.addEventListener('message', (e) => {
+                transcript.textContent += e.data
+              })
+
+              recorder.connect(compressor)
+              compressor.connect(recorderWorklet)
+              recorderWorklet.connect(audioCtx.destination)
+
+              recorderWorklet.port.onmessage = (e) => {
+                console.log("SEND: " + e.data.length)
+                ws.send(e.data.buffer)
               }
-              audioTrack.applyConstraints(constraints)
-                .catch(console.error)
-                .then(() => {
-                  const source = context.createMediaStreamSource(stream)
-                  const recorder = new AudioWorkletNode(context, 'recorder.worklet')
-                  var ws = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/transcribe_record/ws");
-                  ws.onmessage = (e) => {
-                    transcript.textContent += e.data
-                  };
-                  source.connect(recorder).connect(context.destination)
-                  recorder.port.onmessage = (e) => {
-                      console.log("SEND: " + e.data.length)
-                      ws.send(e.data.buffer)
-                  }
-                })
             })
         })
     }
@@ -53,9 +63,9 @@
       const meterEl = document.getElementById('volume-meter')
 
       buttonEl.addEventListener('click', async () => {
-        const audioContext = new AudioContext()
-        await startAudio(audioContext, meterEl)
-        audioContext.resume()
+        const audioCtx = new AudioContext()
+        await startAudio(audioCtx, meterEl)
+        audioCtx.resume()
         buttonEl.disabled = true
         buttonEl.textContent = 'Playing...'
       }, false)
