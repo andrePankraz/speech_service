@@ -26,7 +26,11 @@
     }
 
     const upload = (file) => {
-      src_file.textContent = `${file.name}\n(${file.size} Byte, Type: ${file.type})`
+      // disable UI elements
+      file_upload.disabled = true
+      record_btn.disabled = true
+      // update UI infos
+      src_file.textContent = `Filename: ${file.name}\n(Size: ${file.size} Bytes, Type: ${file.type})`
       src_lang.value = ''
       tgt_text.textContent = ''
 
@@ -53,50 +57,76 @@
             srt += segment.text + '\n\n'
           }
           tgt_text.textContent = srt
+          // reactivate UI elements
+          file_upload.disabled = false
+          record_btn.disabled = false
+          record_btn.classList.remove('transform-active')
         })
         .catch(
           (error) => console.log(error)
         )
     }
 
+    const start_recording = async () => {
+      record_btn.removeEventListener('click', start_recording)
+      record_btn.addEventListener('click', stop_recording)
+      // disable UI elements
+      file_upload.disabled = true
+      // reset UI infos
+      src_file.textContent = ''
+      src_lang.value = ''
+      tgt_text.textContent = ''
+
+      record_btn.classList.add('transform-active')  // start button animation
+      mediaRecorder.start()
+      timeoutID = setTimeout(() => {
+        mediaRecorder.stop()
+      }, 25000)
+    }
+
+    const stop_recording = async () => {
+      mediaRecorder.stop()
+    }
+
     window.onload = async () => {
       const file_upload = document.getElementById("file_upload")
       const file_drop = document.getElementById("file_drop")
+      const record_btn = document.getElementById("record_btn")
       const src_file = document.getElementById('src_file')
       const src_lang = document.getElementById('src_lang')
       const tgt_lang = document.getElementById('tgt_lang')
       const tgt_text = document.getElementById('tgt_text')
       // init file select action
-      file_upload.addEventListener("change", (event) => {
+      file_upload.addEventListener("change", async (e) => {
         upload(file_upload.files[0])
         file_upload.value = null
       })
       // init dropdown action
-      file_drop.ondragenter = (event) => {
-        event.stopPropagation()
-        event.preventDefault()
-        if (event.target.classList.contains("dropzone")) {
-          event.target.classList.add("dragover")
+      file_drop.ondragenter = async (e) => {
+        e.stopPropagation()
+        e.preventDefault()
+        if (e.target.classList.contains("dropzone")) {
+          e.target.classList.add("dragover")
         }
       }
-      file_drop.ondragleave = (event) => {
-        event.stopPropagation()
-        event.preventDefault()
-        if (event.target.classList.contains("dropzone")) {
-          event.target.classList.remove("dragover")
+      file_drop.ondragleave = async (e) => {
+        e.stopPropagation()
+        e.preventDefault()
+        if (e.target.classList.contains("dropzone")) {
+          e.target.classList.remove("dragover")
         }
       }
-      file_drop.ondragover = (event) => {
-        event.stopPropagation()
-        event.preventDefault()
+      file_drop.ondragover = async (e) => {
+        e.stopPropagation()
+        e.preventDefault()
       }
-      file_drop.ondrop = (event) => {
-        event.stopPropagation()
-        event.preventDefault()
-        if (event.target.classList.contains("dropzone")) {
-          event.target.classList.remove("dragover")
+      file_drop.ondrop = async (e) => {
+        e.stopPropagation()
+        e.preventDefault()
+        if (e.target.classList.contains("dropzone")) {
+          e.target.classList.remove("dragover")
         }
-        const dt = event.dataTransfer
+        const dt = e.dataTransfer
         const files = dt.files
         const count = files.length
         upload(files[0])
@@ -122,23 +152,44 @@
           (error) => console.log(error)
         )
       // init change events
-      tgt_lang.addEventListener('change', (event) => {
+      tgt_lang.addEventListener('change', async (e) => {
+        // reset UI infos       
         src_file.textContent = ''
         src_lang.value = ''
         tgt_text.textContent = ''
       })
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .catch(console.error)
+        .then(stream => {
+          mediaRecorder = new MediaRecorder(stream)
+          let chunks = []
+          mediaRecorder.ondataavailable = (e) => chunks.push(e.data)
+          mediaRecorder.onstop = async (e) => {
+            record_btn.removeEventListener('click', stop_recording)
+            record_btn.addEventListener('click', start_recording)
+            clearTimeout(timeoutID)
+            record_btn.classList.remove('transform-active') // end button animation
+            const blob = new Blob(chunks, { type: chunks[0].type })
+            upload(blob)
+            chunks = []
+          }
+          record_btn.addEventListener('click', start_recording)
+        })
     }
   </script>
 </head>
 
 <body>
   <h1>Transcribe Upload</h1>
-  <p>In the following Demo you can upload a File with Audio content (could also be a Video) and get a transcription.
-    Please don't use files with multiple minutes of content, this would take a long time for uploading, processing
-    etc. in this Demo instance.</p>
+  <p>In the following demo, you can upload a file with audio content (can also be a video) to a REST service and receive
+    a transcription. The files are deleted immediately after processing. Please don't use files with multiple minutes of
+    content, because this would take a long time for uploading and processing in this demo instance.<br>
+    You have 3 ways to upload content, either by file selection, by drag & drop or by recording.</p>
   <label for="file_upload">Open a File with Audio:</label>
-  <input id="file_upload" type="file" />
+  <input id="file_upload" type="file" accept="audio/*,video/*" />
   <div id="file_drop" class="dropzone">Drop a File with Audio here</div>
+  <button id="record_btn" class="progress_btn">Record up to 25 seconds of audio</button>
+
   <label for="src_file">Source file:</label>
   <pre id="src_file"></pre>
   <label for="src_lang">Source language:</label>
