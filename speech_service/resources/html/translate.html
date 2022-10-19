@@ -55,8 +55,9 @@
         )
       // init change events
       const on_change = (event) => {
-        clearTimeout(this.timeoutId)
-        this.timeoutId = setTimeout(translate.bind(this), 2000)
+        clearTimeout(this.timeout_id)
+        this.timeout_id = setTimeout(translate.bind(this), 2000)
+        tgt_text.value = ''
       }
       src_text.addEventListener('input', on_change)
       tgt_lang.addEventListener('change', on_change)
@@ -65,12 +66,12 @@
         if (!src_lang.value) {
           return
         }
-        clearTimeout(this.timeoutId)
+        clearTimeout(this.timeout_id)
         src_text.value = tgt_text.value
         tgt_lang.value = src_lang.value
         src_lang.value = ''
         tgt_text.value = ''
-        this.timeoutId = setTimeout(translate.bind(this), 2000)
+        this.timeout_id = setTimeout(translate.bind(this), 2000)
       })
     }
   </script>
