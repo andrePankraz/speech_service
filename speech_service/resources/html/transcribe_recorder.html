@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="simple.css" />
+  <link rel="stylesheet" href="style.css" />
+  <title>Speech Tests</title>
+
+  <script>
+    const startAudio = async (audioCtx, volume_meter) => {
+      audioCtx.audioWorklet.addModule('js/RecorderProcessor.js')
+        .catch((err) => {
+          console.log(`The following audioWorklet.addModule error occurred: ${err}`);
+        })
+        .then(() => {
+          navigator.mediaDevices.getUserMedia({ audio: true })
+            .catch((err) => {
+              console.log(`The following mediaDevices.getUserMedia error occurred: ${err}`);
+            })
+            .then(stream => {
+              const audioTracks = stream.getAudioTracks()
+              if (audioTracks.length !== 1) {
+                throw new Error('Too many tracks!')
+              }
+              const audioTrack = audioTracks[0]
+
+              const recorder = audioCtx.createMediaStreamSource(stream)
+              const gain = audioCtx.createGain()
+              gain.gain.setValueAtTime(2, audioCtx.currentTime)
+              // const compressor = audioCtx.createDynamicsCompressor()
+              // compressor.threshold.setValueAtTime(-50, audioCtx.currentTime);
+              // compressor.knee.setValueAtTime(40, audioCtx.currentTime);
+              // compressor.ratio.setValueAtTime(20, audioCtx.currentTime);
+              // compressor.attack.setValueAtTime(0, audioCtx.currentTime);
+              // compressor.release.setValueAtTime(0.25, audioCtx.currentTime);
+
+              const recorderWorklet = new AudioWorkletNode(audioCtx, 'recorder.worklet')
+
+              var ws = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/transcribe_record/ws");
+              ws.addEventListener('error', (e) => {
+                console.log('WebSocket error: ', e);
+              })
+              ws.addEventListener('message', (e) => {
+                tgt_text.textContent += e.data + '\n'
+              })
+
+              recorder.connect(gain)
+              gain.connect(recorderWorklet)
+              recorderWorklet.connect(audioCtx.destination)
+
+              recorderWorklet.port.onmessage = (e) => {
+                if (typeof (e.data) === 'number') {
+                  volume_meter.value = e.data // decibel
+                  return
+                }
+                console.log("Send: " + e.data.length)
+                ws.send(e.data.buffer)
+              }
+            })
+        })
+    }
+
+    window.onload = async () => {
+      const btn_record = document.getElementById('button-start')
+      const volume_meter = document.getElementById('volume-meter')
+      const tgt_text = document.getElementById('tgt_text')
+
+      btn_record.addEventListener('click', async () => {
+        if (btn_record.textContent === 'Start recording') {
+          audioCtx = new AudioContext()
+          await startAudio(audioCtx, volume_meter)
+          audioCtx.resume().then(() => {
+            btn_record.textContent = "Recording... (Click stop for suspending record)";
+          })
+        } else if (audioCtx.state === "suspended") {
+          audioCtx.resume().then(() => {
+            btn_record.textContent = "Recording... (Click stop for suspending record)";
+          })
+        } else if (audioCtx.state === "running") {
+          audioCtx.suspend().then(() => {
+            btn_record.textContent = "Resume recording";
+          })
+        }
+      })
+    }
+  </script>
+</head>
+
+<body>
+  <h1>Transcribe Recorder</h1>
+  <p>In this demo you can speak into the micro and receive a transcription in real time. The recording snippets are sent
+    to the server via websocket-based services, processed there and the response is sent back via websockets. The files
+    are deleted immediately after processing.<br>
+    This experiment isn't very stable yet, because of latency issues and wrong block sizes etc. Better use the record
+    function in
+    <a href="transcribe_upload.html">Transcribe Upload</a>.
+  </p>
+  <button id="button-start">Start recording</button>
+  <input id="volume-meter" type="range" min="0" max="100" value="0" step="1" disabled>
+  <label for="tgt_text">Transcription:</label>
+  <pre id="tgt_text"></pre>
+</body>
+
+</html>

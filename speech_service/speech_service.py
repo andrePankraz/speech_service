@@ -174,6 +174,7 @@ def transcribe_download(req: TranscriptionRequest) -> TranscriptionResponse:
         f"Transcribed Download {req.url!r} in {timer() - start:.3f}s")
     return result
 
+
 @app.websocket("/transcribe_record/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -183,9 +184,8 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             data: bytes = await websocket.receive_bytes()
             result = whisper_manager.transcribe(data)
-            log.info(f"TEST {result=}")
             if result.segments:
-                await websocket.send_text(result.segments[0].text)
+                await websocket.send_text(' '.join(s.text for s in result.segments))
     except Exception as e:
         raise Exception(f'Could not process audio: {e}')
     finally:

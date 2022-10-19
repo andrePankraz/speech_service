@@ -78,14 +78,14 @@
       tgt_text.textContent = ''
 
       record_btn.classList.add('transform-active')  // start button animation
-      mediaRecorder.start()
-      timeoutID = setTimeout(() => {
-        mediaRecorder.stop()
+      media_recorder.start()
+      timeout_id = setTimeout(() => {
+        media_recorder.stop()
       }, 25000)
     }
 
     const stop_recording = async () => {
-      mediaRecorder.stop()
+      media_recorder.stop()
     }
 
     window.onload = async () => {
@@ -161,13 +161,13 @@
       navigator.mediaDevices.getUserMedia({ audio: true })
         .catch(console.error)
         .then(stream => {
-          mediaRecorder = new MediaRecorder(stream)
+          media_recorder = new MediaRecorder(stream)
           let chunks = []
-          mediaRecorder.ondataavailable = (e) => chunks.push(e.data)
-          mediaRecorder.onstop = async (e) => {
+          media_recorder.ondataavailable = (e) => chunks.push(e.data)
+          media_recorder.onstop = async (e) => {
             record_btn.removeEventListener('click', stop_recording)
             record_btn.addEventListener('click', start_recording)
-            clearTimeout(timeoutID)
+            clearTimeout(timeout_id)
             record_btn.classList.remove('transform-active') // end button animation
             const blob = new Blob(chunks, { type: chunks[0].type })
             upload(blob)
