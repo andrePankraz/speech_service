@@ -11,7 +11,7 @@ import sys
 import threading
 from timeit import default_timer as timer
 import torch
-from typing import List, Union
+from typing import List, Optional, Union
 import whisper
 
 log = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class WhisperManager:
                 log.info(
                     f"VRAM left: {round(torch.cuda.mem_get_info(0)[0]/1024**3,1)} GB")
 
-    def transcribe(self, audio: Union[str, np.ndarray, torch.Tensor, bytes]) -> WhisperResult:
+    def transcribe(self, audio: Union[str, np.ndarray, torch.Tensor, bytes], src_lang: Optional[str] = None) -> WhisperResult:
         log.info(f"Transcribing...")
         start = timer()
 
@@ -80,7 +80,7 @@ class WhisperManager:
         # Whisper can also directly translate via parameter: task='translate'
         # but quality is much worse than NLLB
         with WhisperManager.lock:
-            results = self.model.transcribe(audio)
+            results = self.model.transcribe(audio, language=src_lang)
         log.info(f"...done in {timer() - start:.3f}s")
         segments = [WhisperSegment(
             id=s['id'], start=s['start'], end=s['end'], text=s['text'].strip()) for s in results['segments']]

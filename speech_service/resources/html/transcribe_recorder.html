@@ -26,8 +26,10 @@
               const audioTrack = audioTracks[0]
 
               const recorder = audioCtx.createMediaStreamSource(stream)
-              const gain = audioCtx.createGain()
-              gain.gain.setValueAtTime(2, audioCtx.currentTime)
+
+              // const gain = audioCtx.createGain()
+              // gain.gain.setValueAtTime(2, audioCtx.currentTime)
+
               // const compressor = audioCtx.createDynamicsCompressor()
               // compressor.threshold.setValueAtTime(-50, audioCtx.currentTime);
               // compressor.knee.setValueAtTime(40, audioCtx.currentTime);
@@ -39,23 +41,47 @@
 
               var ws = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/transcribe_record/ws");
               ws.addEventListener('error', (e) => {
-                console.log('WebSocket error: ', e);
+                console.log('WebSocket error: ', e)
               })
               ws.addEventListener('message', (e) => {
-                tgt_text.textContent += e.data + '\n'
+                obj = JSON.parse(e.data)
+                src_lang.value = obj.language
+                obj.segments.forEach(e => {
+                  tgt_text.textContent += e.text + '\n'
+                })
               })
 
-              recorder.connect(gain)
-              gain.connect(recorderWorklet)
+              recorder.connect(recorderWorklet)
+              // recorder.connect(compressor)
+              // compressor.connect(recorderWorklet)
               recorderWorklet.connect(audioCtx.destination)
+
+              const buffer_size = 16000 * 30
+              const buffer = new Float32Array(buffer_size)
+              let samples_written = 0
 
               recorderWorklet.port.onmessage = (e) => {
                 if (typeof (e.data) === 'number') {
                   volume_meter.value = e.data // decibel
+                  if (e.data <= -10) {
+                    if (samples_written > 16000) {
+                      console.log("Send after sentence end: " + samples_written)
+                      ws.send(buffer.slice(0, samples_written))
+                    }
+                    samples_written = 0
+                  }
                   return
                 }
-                console.log("Send: " + e.data.length)
-                ws.send(e.data.buffer)
+                msg_buffer = e.data
+                console.log("Receiving audio data: " + msg_buffer.length + "(" + samples_written + ")")
+                for (let i = 0; i < msg_buffer.length; i++) {
+                  buffer[samples_written++] = msg_buffer[i]
+                  if (samples_written === buffer_size) {
+                    console.log("Send because buffer full " + samples_written)
+                    ws.send(buffer.slice(0, samples_written))
+                    samples_written = 0
+                  }
+                }
               }
             })
         })
@@ -64,6 +90,7 @@
     window.onload = async () => {
       const btn_record = document.getElementById('button-start')
       const volume_meter = document.getElementById('volume-meter')
+      const src_lang = document.getElementById('src_lang')
       const tgt_text = document.getElementById('tgt_text')
 
       btn_record.addEventListener('click', async () => {
@@ -83,6 +110,26 @@
           })
         }
       })
+      // init language dropdowns
+      fetch('/languages', {
+        headers: {
+          'Accept': 'application/json'
+        }
+      })
+        .then((res) => res.json())
+        .then((json) => {
+          for (let i = 0; i < json.length; i++) {
+            const obj = json[i]
+            const el = document.createElement('option')
+            el.value = obj.language_id
+            el.textContent = obj.language_name
+            src_lang.appendChild(el)
+          }
+        })
+        .catch(
+          (error) => console.log(error)
+        )
+
     }
   </script>
 </head>
@@ -97,7 +144,11 @@
     <a href="transcribe_upload.html">Transcribe Upload</a>.
   </p>
   <button id="button-start">Start recording</button>
-  <input id="volume-meter" type="range" min="0" max="100" value="0" step="1" disabled>
+  <input id="volume-meter" type="range" min="-20" max="80" value="-20" step="1" disabled>
+  <label for="src_lang">Source language:</label>
+  <select id="src_lang" disabled>
+    <option value="">Will be autodetected...</option>
+  </select>
   <label for="tgt_text">Transcription:</label>
   <pre id="tgt_text"></pre>
 </body>

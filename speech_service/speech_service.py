@@ -47,9 +47,9 @@ def _translate(texts: List[str], src_lang: str, tgt_lang: str) -> List[str]:
     return nllb_manager.translate(texts, src_lang, tgt_lang)
 
 
-def _transcribe(audio: Union[str, bytes]) -> WhisperResult:
+def _transcribe(audio: Union[str, bytes], src_lang: Optional[str] = None) -> WhisperResult:
     whisper_manager = WhisperManager()
-    return whisper_manager.transcribe(audio)
+    return whisper_manager.transcribe(audio, src_lang)
 
 
 # Push long running GPU task into specialized single worker processes - one worker per GPU model
@@ -222,7 +222,13 @@ async def websocket_endpoint(websocket: WebSocket):
             whisper_result = await asyncio.get_event_loop().run_in_executor(
                 whisper_executor, _transcribe, data)
             if whisper_result.segments:
-                await websocket.send_text(' '.join(s.text for s in whisper_result.segments))
+                # convert whisper language codes into Flores-200 language codes for NLLB
+                log.debug(f"Sometimes we get an error here, log it: {whisper_result.language}")
+                src_lang = next(k for k, v in LANGUAGES.items()
+                                if v[1] == whisper_result.language)
+                whisper_result.language = src_lang
+
+                await websocket.send_json(whisper_result.dict())
     except Exception as e:
         raise Exception(f'Could not process audio: {e}')
     finally:

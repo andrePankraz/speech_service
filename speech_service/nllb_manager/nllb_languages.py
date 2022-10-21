@@ -134,7 +134,7 @@ LANGUAGES = {
     'mri_Latn': ['Maori', 'mi'],
     'mya_Mymr': ['Burmese', None],
     'nld_Latn': ['Dutch', 'nl'],
-    'nno_Latn': ['Norwegian Nynorsk', 'no'],
+    'nno_Latn': ['Norwegian Nynorsk', 'nn'],
     'nob_Latn': ['Norwegian Bokmål', 'no'],
     'npi_Deva': ['Nepali', None],
     'nso_Latn': ['Northern Sotho', None],
