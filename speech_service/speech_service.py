@@ -3,6 +3,8 @@ This file was created by ]init[ AG 2022.
 
 Module for Speech Service.
 '''
+import asyncio
+from concurrent.futures import ProcessPoolExecutor
 from fastapi import FastAPI, Form, UploadFile, WebSocket
 from fastapi.staticfiles import StaticFiles
 import logging
@@ -10,20 +12,18 @@ from nllb_manager import NllbManager, LANGUAGES
 import os
 from pathlib import Path
 from pydantic import BaseModel
-from tempfile import NamedTemporaryFile
 import shortuuid
 import shutil
 import sys
+from tempfile import NamedTemporaryFile
 from timeit import default_timer as timer
-from typing import Optional, List
-from whisper_manager import WhisperManager
+from typing import List, Optional, Union
+from whisper_manager import WhisperManager, WhisperResult
 import yt_dlp
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
-
-app = FastAPI()
 
 
 def save_upload_file_tmp(upload_file: UploadFile) -> Path:
@@ -35,6 +35,40 @@ def save_upload_file_tmp(upload_file: UploadFile) -> Path:
     finally:
         upload_file.file.close()
     return tmp_path
+
+
+def _identitfy_language(text: str) -> str:
+    nllb_manager = NllbManager()
+    return nllb_manager.identify_language(text)
+
+
+def _translate(texts: List[str], src_lang: str, tgt_lang: str) -> List[str]:
+    nllb_manager = NllbManager()
+    return nllb_manager.translate(texts, src_lang, tgt_lang)
+
+
+def _transcribe(audio: Union[str, bytes]) -> WhisperResult:
+    whisper_manager = WhisperManager()
+    return whisper_manager.transcribe(audio)
+
+
+# Push long running GPU task into specialized single worker processes - one worker per GPU model
+nllb_executor = ProcessPoolExecutor(max_workers=1)
+whisper_executor = ProcessPoolExecutor(max_workers=1)
+
+app = FastAPI()
+
+
+@app.on_event("startup")
+async def startup_event():
+    log.warn("Startup...")
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    log.warn("Shutting down...")
+    nllb_executor.shutdown()
+    whisper_executor.shutdown()
 
 # Following ordering is important for overlapping path matches...
 
@@ -58,10 +92,10 @@ class IdentityLanguageResponse(BaseModel):
 
 
 @app.post('/identitfy_language/', response_model=IdentityLanguageResponse)
-def identitfy_language(req: IdentityLanguageRequest) -> IdentityLanguageResponse:
+async def identitfy_language(req: IdentityLanguageRequest) -> IdentityLanguageResponse:
     log.info(f"Identitfy language: {req=}")
-    nllb_manager = NllbManager()
-    language = nllb_manager.identify_language(req.text)
+    # Push long running task into specialized NLLB single worker process
+    language = await asyncio.get_event_loop().run_in_executor(nllb_executor, _identitfy_language, req.text)
     return IdentityLanguageResponse(language=language)
 
 
@@ -78,15 +112,15 @@ class TranslationResponse(BaseModel):
 
 
 @app.post('/translate/', response_model=TranslationResponse)
-def translate(req: TranslationRequest) -> TranslationResponse:
+async def translate(req: TranslationRequest) -> TranslationResponse:
     log.info(f"Translate: {req=}")
-    nllb_manager = NllbManager()
     if req.src_lang != None:
         src_lang = req.src_lang
     else:
-        src_lang = nllb_manager.identify_language(req.texts[0])
-    texts = nllb_manager.translate(req.texts, src_lang, req.tgt_lang)
-    return TranslationResponse(texts=texts, src_lang=src_lang, tgt_lang=req.tgt_lang)
+        src_lang = await asyncio.get_event_loop().run_in_executor(nllb_executor, _identitfy_language, req.texts[0])
+    # Push long running task into specialized NLLB single worker process
+    translated_texts = await asyncio.get_event_loop().run_in_executor(nllb_executor, _translate, req.texts, src_lang, req.tgt_lang)
+    return TranslationResponse(texts=translated_texts, src_lang=src_lang, tgt_lang=req.tgt_lang)
 
 
 class TranscriptionResponse(BaseModel):
@@ -95,34 +129,36 @@ class TranscriptionResponse(BaseModel):
     tgt_lang: str = None
 
 
-def transcribe(path: Path, tgt_lang: Optional[str] = None) -> TranscriptionResponse:
-    whisper_manager = WhisperManager()
-    result = whisper_manager.transcribe(str(path))
+async def transcribe(path: Path, tgt_lang: Optional[str] = None) -> TranscriptionResponse:
+    # Push long running task into specialized Whisper single worker process
+    whisper_result = await asyncio.get_event_loop().run_in_executor(
+        whisper_executor, _transcribe, str(path))
+
     # convert whisper language codes into Flores-200 language codes for NLLB
     src_lang = next(k for k, v in LANGUAGES.items()
-                    if v[1] == result.language)
+                    if v[1] == whisper_result.language)
 
     if tgt_lang == src_lang or not tgt_lang in LANGUAGES:
         # target language is fine, nothing to do
-        return TranscriptionResponse(segments=result.segments, src_lang=src_lang)
+        return TranscriptionResponse(segments=whisper_result.segments, src_lang=src_lang)
 
-    nllb_manager = NllbManager()
-    translated_texts = nllb_manager.translate(
-        [s.text for s in result.segments], src_lang, tgt_lang)
-    for s, t in zip(result.segments, translated_texts):
+    # Push long running task into specialized NLLB single worker process
+    translated_texts = await asyncio.get_event_loop().run_in_executor(nllb_executor, _translate,
+                                                                      [s.text for s in whisper_result.segments], src_lang, tgt_lang)
+    for s, t in zip(whisper_result.segments, translated_texts):
         s.text = t
 
-    return TranscriptionResponse(segments=result.segments, src_lang=src_lang, tgt_lang=tgt_lang)
+    return TranscriptionResponse(segments=whisper_result.segments, src_lang=src_lang, tgt_lang=tgt_lang)
 
 
 @app.post('/transcribe_upload/', response_model=TranscriptionResponse)
-def transcribe_upload(file: UploadFile, tgt_lang: Optional[str] = Form(None)) -> TranscriptionResponse:
+async def transcribe_upload(file: UploadFile, tgt_lang: Optional[str] = Form(None)) -> TranscriptionResponse:
     log.info(f"Transcribe Upload: {file.filename}")
     start = timer()
 
     filepath = save_upload_file_tmp(file)
     try:
-        result = transcribe(filepath, tgt_lang)
+        result = await transcribe(filepath, tgt_lang)
     finally:
         filepath.unlink()  # Delete the temp file
 
@@ -137,7 +173,7 @@ class TranscriptionRequest(BaseModel):
 
 
 @app.post('/transcribe_download/', response_model=TranscriptionResponse)
-def transcribe_download(req: TranscriptionRequest) -> TranscriptionResponse:
+async def transcribe_download(req: TranscriptionRequest) -> TranscriptionResponse:
     log.info(f"Transcribe Download: {req.url}")
     start = timer()
     # see https://github.com/ytdl-org/youtube-dl/blob/3e4cedf9e8cd3157df2457df7274d0c842421945/youtube_dl/YoutubeDL.py#L137-L312
@@ -166,7 +202,7 @@ def transcribe_download(req: TranscriptionRequest) -> TranscriptionResponse:
     log.info(f"  ...downloaded {req.url!r} as {filepath!r}...")
 
     try:
-        result = transcribe(filepath, req.tgt_lang)
+        result = await transcribe(filepath, req.tgt_lang)
     finally:
         filepath.unlink()  # Delete the temp file
 
@@ -178,14 +214,15 @@ def transcribe_download(req: TranscriptionRequest) -> TranscriptionResponse:
 @app.websocket("/transcribe_record/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    whisper_manager = WhisperManager()
 
     try:
         while True:
             data: bytes = await websocket.receive_bytes()
-            result = whisper_manager.transcribe(data)
-            if result.segments:
-                await websocket.send_text(' '.join(s.text for s in result.segments))
+            # Push long running task into specialized Whisper single worker process
+            whisper_result = await asyncio.get_event_loop().run_in_executor(
+                whisper_executor, _transcribe, data)
+            if whisper_result.segments:
+                await websocket.send_text(' '.join(s.text for s in whisper_result.segments))
     except Exception as e:
         raise Exception(f'Could not process audio: {e}')
     finally:

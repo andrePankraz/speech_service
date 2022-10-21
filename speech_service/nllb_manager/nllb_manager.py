@@ -3,9 +3,9 @@ This file was created by ]init[ AG 2022.
 
 Module for Model "No Language Left Behind" (NLLB).
 '''
-from nllb_manager.download import download
 import fasttext
 import logging
+from nllb_manager.download import download
 import os
 from pydantic import BaseModel
 from sentence_cleaner_splitter.cleaner_splitter import SentenceSplitClean

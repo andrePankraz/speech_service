@@ -5,6 +5,7 @@ services:
     build:
       context: docker/python
       target: ${TARGET:-local}  # dev or local
+    shm_size: '2gb'
     environment:
     - MODEL_FOLDER=/opt/speech_service/models/
     - UPLOAD_FOLDER=/opt/speech_service/uploads/
