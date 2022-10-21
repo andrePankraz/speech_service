@@ -11,12 +11,12 @@
     const startAudio = async (audioCtx, volume_meter) => {
       audioCtx.audioWorklet.addModule('js/RecorderProcessor.js')
         .catch((err) => {
-          console.log(`The following audioWorklet.addModule error occurred: ${err}`);
+          console.log(`The following audioWorklet.addModule error occurred: ${err}`)
         })
         .then(() => {
           navigator.mediaDevices.getUserMedia({ audio: true })
             .catch((err) => {
-              console.log(`The following mediaDevices.getUserMedia error occurred: ${err}`);
+              console.log(`The following mediaDevices.getUserMedia error occurred: ${err}`)
             })
             .then(stream => {
               const audioTracks = stream.getAudioTracks()
@@ -31,15 +31,15 @@
               // gain.gain.setValueAtTime(2, audioCtx.currentTime)
 
               // const compressor = audioCtx.createDynamicsCompressor()
-              // compressor.threshold.setValueAtTime(-50, audioCtx.currentTime);
-              // compressor.knee.setValueAtTime(40, audioCtx.currentTime);
-              // compressor.ratio.setValueAtTime(20, audioCtx.currentTime);
-              // compressor.attack.setValueAtTime(0, audioCtx.currentTime);
-              // compressor.release.setValueAtTime(0.25, audioCtx.currentTime);
+              // compressor.threshold.setValueAtTime(-50, audioCtx.currentTime)
+              // compressor.knee.setValueAtTime(40, audioCtx.currentTime)
+              // compressor.ratio.setValueAtTime(20, audioCtx.currentTime)
+              // compressor.attack.setValueAtTime(0, audioCtx.currentTime)
+              // compressor.release.setValueAtTime(0.25, audioCtx.currentTime)
 
               const recorderWorklet = new AudioWorkletNode(audioCtx, 'recorder.worklet')
 
-              var ws = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/transcribe_record/ws");
+              var ws = new WebSocket(`${(window.location.protocol === "https:") ? "wss://" : "ws://"}${window.location.host}/transcribe_record/ws`)
               ws.addEventListener('error', (e) => {
                 console.log('WebSocket error: ', e)
               })
@@ -62,10 +62,15 @@
 
               recorderWorklet.port.onmessage = (e) => {
                 if (typeof (e.data) === 'number') {
-                  volume_meter.value = e.data // decibel
+                  const db = e.data // decibel
+                  const min = -30
+                  const max = 50
+                  const volume_pos = 100 - (Math.max(min, db) - min) / (max - min) * 100
+                  record_btn.style.backgroundPosition = volume_pos + '%'
+
                   if (e.data <= -10) {
                     if (samples_written > 16000) {
-                      console.log("Send after sentence end: " + samples_written)
+                      console.log(`Send after sentence end: ${samples_written}`)
                       ws.send(buffer.slice(0, samples_written))
                     }
                     samples_written = 0
@@ -73,11 +78,11 @@
                   return
                 }
                 msg_buffer = e.data
-                console.log("Receiving audio data: " + msg_buffer.length + "(" + samples_written + ")")
+                console.log(`Receiving audio data: ${msg_buffer.length} (${samples_written})`)
                 for (let i = 0; i < msg_buffer.length; i++) {
                   buffer[samples_written++] = msg_buffer[i]
                   if (samples_written === buffer_size) {
-                    console.log("Send because buffer full " + samples_written)
+                    console.log(`Send because buffer full: ${samples_written}`)
                     ws.send(buffer.slice(0, samples_written))
                     samples_written = 0
                   }
@@ -88,25 +93,25 @@
     }
 
     window.onload = async () => {
-      const btn_record = document.getElementById('button-start')
-      const volume_meter = document.getElementById('volume-meter')
+      const record_btn = document.getElementById('record_btn')
       const src_lang = document.getElementById('src_lang')
       const tgt_text = document.getElementById('tgt_text')
 
-      btn_record.addEventListener('click', async () => {
-        if (btn_record.textContent === 'Start recording') {
+      record_btn.style.transition = 'none'
+      record_btn.addEventListener('click', async () => {
+        if (record_btn.textContent === 'Start recording') {
           audioCtx = new AudioContext()
-          await startAudio(audioCtx, volume_meter)
+          await startAudio(audioCtx)
           audioCtx.resume().then(() => {
-            btn_record.textContent = "Recording... (Click stop for suspending record)";
+            record_btn.textContent = "Recording... (Click stop for suspending record)"
           })
         } else if (audioCtx.state === "suspended") {
           audioCtx.resume().then(() => {
-            btn_record.textContent = "Recording... (Click stop for suspending record)";
+            record_btn.textContent = "Recording... (Click stop for suspending record)"
           })
         } else if (audioCtx.state === "running") {
           audioCtx.suspend().then(() => {
-            btn_record.textContent = "Resume recording";
+            record_btn.textContent = "Resume recording"
           })
         }
       })
@@ -129,7 +134,6 @@
         .catch(
           (error) => console.log(error)
         )
-
     }
   </script>
 </head>
@@ -143,8 +147,7 @@
     function in
     <a href="transcribe_upload.html">Transcribe Upload</a>.
   </p>
-  <button id="button-start">Start recording</button>
-  <input id="volume-meter" type="range" min="-20" max="80" value="-20" step="1" disabled>
+  <button id="record_btn" class="progress">Start recording</button>
   <label for="src_lang">Source language:</label>
   <select id="src_lang" disabled>
     <option value="">Will be autodetected...</option>

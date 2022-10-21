@@ -4,21 +4,10 @@ class RecorderProcessor extends AudioWorkletProcessor {
     super()
     this.buffer_size = 16000 * 2 // 16 kHz with 2 second time resolution for short breaks
     this.buffer = new Float32Array(this.buffer_size)
-    this.init_buffer()
+    this.samples_written = 0
+
     this.volume_frames = 0
     this.square_sum = 0
-  }
-
-  init_buffer() {
-    this.samples_written = 0
-  }
-
-  is_buffer_empty() {
-    return this.samples_written === 0
-  }
-
-  is_buffer_full() {
-    return this.samples_written === this.buffer_size
   }
 
   append(channels) {
@@ -38,19 +27,15 @@ class RecorderProcessor extends AudioWorkletProcessor {
       const previous_sample = this.buffer[this.samples_written]
       this.square_sum += sample * sample - previous_sample * previous_sample
       this.buffer[this.samples_written++] = sample
-      if (this.is_buffer_full()) {
-        this.flush()
+      if (this.samples_written === this.buffer_size) {
+        const rms = Math.sqrt(this.square_sum / this.samples_written)
+        // ignore silent blocks
+        if (rms > 0.01) {
+          this.port.postMessage(this.buffer.slice(0, this.samples_written))
+        }
+        this.samples_written = 0
       }
     }
-  }
-
-  flush() {
-    const rms = Math.sqrt(this.square_sum / this.samples_written)
-    // ignore silent blocks
-    if (rms > 0.01) {
-      this.port.postMessage(this.buffer.slice(0, this.samples_written))
-    }
-    this.init_buffer()
   }
 
   process(inputs) {

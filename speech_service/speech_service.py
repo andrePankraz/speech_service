@@ -52,6 +52,16 @@ def _transcribe(audio: Union[str, bytes], src_lang: Optional[str] = None) -> Whi
     return whisper_manager.transcribe(audio, src_lang)
 
 
+def _lang_iso_2_flores(language: str) -> Optional[str]:
+    # Convert whisper language codes into Flores-200 language codes for NLLB
+    try:
+        return next(k for k, v in LANGUAGES.items()
+                    if v[1] == language)
+    except StopIteration:
+        log.warn(f"Cannot convert ISO language {language!r} to flores!")
+        return None
+
+
 # Push long running GPU task into specialized single worker processes - one worker per GPU model
 nllb_executor = ProcessPoolExecutor(max_workers=1)
 whisper_executor = ProcessPoolExecutor(max_workers=1)
@@ -94,8 +104,13 @@ class IdentityLanguageResponse(BaseModel):
 @app.post('/identitfy_language/', response_model=IdentityLanguageResponse)
 async def identitfy_language(req: IdentityLanguageRequest) -> IdentityLanguageResponse:
     log.info(f"Identitfy language: {req=}")
+    start = timer()
+
     # Push long running task into specialized NLLB single worker process
     language = await asyncio.get_event_loop().run_in_executor(nllb_executor, _identitfy_language, req.text)
+
+    log.info(
+        f"Identitfied language in {timer() - start:.3f}s")
     return IdentityLanguageResponse(language=language)
 
 
@@ -113,13 +128,18 @@ class TranslationResponse(BaseModel):
 
 @app.post('/translate/', response_model=TranslationResponse)
 async def translate(req: TranslationRequest) -> TranslationResponse:
-    log.info(f"Translate: {req=}")
+    log.info(f"Translate")
+    start = timer()
+
     if req.src_lang != None:
         src_lang = req.src_lang
     else:
         src_lang = await asyncio.get_event_loop().run_in_executor(nllb_executor, _identitfy_language, req.texts[0])
     # Push long running task into specialized NLLB single worker process
     translated_texts = await asyncio.get_event_loop().run_in_executor(nllb_executor, _translate, req.texts, src_lang, req.tgt_lang)
+
+    log.info(
+        f"Translated in {timer() - start:.3f}s")
     return TranslationResponse(texts=translated_texts, src_lang=src_lang, tgt_lang=req.tgt_lang)
 
 
@@ -133,21 +153,15 @@ async def transcribe(path: Path, tgt_lang: Optional[str] = None) -> Transcriptio
     # Push long running task into specialized Whisper single worker process
     whisper_result = await asyncio.get_event_loop().run_in_executor(
         whisper_executor, _transcribe, str(path))
-
-    # convert whisper language codes into Flores-200 language codes for NLLB
-    src_lang = next(k for k, v in LANGUAGES.items()
-                    if v[1] == whisper_result.language)
-
+    src_lang = _lang_iso_2_flores(whisper_result.language)
     if tgt_lang == src_lang or not tgt_lang in LANGUAGES:
-        # target language is fine, nothing to do
+        # Target language is fine, nothing to do
         return TranscriptionResponse(segments=whisper_result.segments, src_lang=src_lang)
-
     # Push long running task into specialized NLLB single worker process
     translated_texts = await asyncio.get_event_loop().run_in_executor(nllb_executor, _translate,
                                                                       [s.text for s in whisper_result.segments], src_lang, tgt_lang)
     for s, t in zip(whisper_result.segments, translated_texts):
         s.text = t
-
     return TranscriptionResponse(segments=whisper_result.segments, src_lang=src_lang, tgt_lang=tgt_lang)
 
 
@@ -176,8 +190,8 @@ class TranscriptionRequest(BaseModel):
 async def transcribe_download(req: TranscriptionRequest) -> TranscriptionResponse:
     log.info(f"Transcribe Download: {req.url}")
     start = timer()
-    # see https://github.com/ytdl-org/youtube-dl/blob/3e4cedf9e8cd3157df2457df7274d0c842421945/youtube_dl/YoutubeDL.py#L137-L312
 
+    # see https://github.com/ytdl-org/youtube-dl/blob/3e4cedf9e8cd3157df2457df7274d0c842421945/youtube_dl/YoutubeDL.py#L137-L312
     filepath = None
 
     def download_hook(e):
@@ -222,10 +236,7 @@ async def websocket_endpoint(websocket: WebSocket):
             whisper_result = await asyncio.get_event_loop().run_in_executor(
                 whisper_executor, _transcribe, data)
             if whisper_result.segments:
-                # convert whisper language codes into Flores-200 language codes for NLLB
-                log.debug(f"Sometimes we get an error here, log it: {whisper_result.language}")
-                src_lang = next(k for k, v in LANGUAGES.items()
-                                if v[1] == whisper_result.language)
+                src_lang = _lang_iso_2_flores(whisper_result.language)
                 whisper_result.language = src_lang
 
                 await websocket.send_json(whisper_result.dict())
