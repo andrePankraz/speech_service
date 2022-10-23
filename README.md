@@ -1,31 +1,45 @@
-# speech_service
-Some tests with AI speech models as web services
+<!---
+This file was created by ]init[ AG 2022.
+-->
 
-## Start as local Service
+# SpeechService
+
+Some tests with AI speech models like [Whisper](https://github.com/openai/whisper) and [NLLB](https://github.com/facebookresearch/fairseq/tree/nllb).
+
+The tests are performed in a Docker container that also works in the Windows Subsystem for Linux (WSL).
+An NVIDIA graphics card with at least 4 GB VRAM is recommended, depending on the models used.
+CUDA is part of the Docker image, only the NVIDIA graphics driver needs to be installed.
+
+## Start as local service with Test-UI
+
 - Clone https://github.com/andrePankraz/speech_service
-- docker compose up
-  - Will take some time, downloading nearly 20 GB the first time
+
+      docker compose up
+
+  - Will take some time at first start (images & packages are downloaded, >10 GB)
   - Wait & check in up and running
 - Go to URL: http://localhost:8200/
-  - Models are downloaded the first time, will take some time, multiple GB
+  - Will take some time at first start (models are downloaded, several GB)
 
-## Develop
+## Start for Development
+
 - Clone https://github.com/andrePankraz/speech_service
-- Uncomment TARGET=dev in .env
-- docker compose up
-  - Will take some time, downloading nearly 20 GB the first time
+
+      docker compose --env-file docker/.envs/dev.env up
+
+  - Will take some time at first start (images & packages are downloaded, >10 GB)
   - Wait & check in up and running
-- Install VS Code
+- Install [VS Code](https://code.visualstudio.com/)
   - Install Extension
-    - Docker
     - Dev Containers
-    - Markdown Preview
-- VS Code:
+    - Docker
+    - Markdown All in One
+- Attach VS Code to Docker Container
   - Attach to running containers... (Lower left edge in VS Code)
-    - select speech_service-paython
+    - select speech_service-python-1
   - Explorer Open folder -> /opt/speech_service
   - Run / Start Debug
     - VS Code Extension Python will be installed the first time (Wait and another Start Debug)
     - Select Python Interpreter
 - Go to URL: http://localhost:8200/
-  - Models are downloaded the first time, will take some time, multiple GB
+  - Will take some time at first start (models are downloaded, several GB)
