@@ -2,9 +2,9 @@
 This file was created by ]init[ AG 2022.
 -->
 
-# SpeechService
+# Speech Service
 
-Some tests with AI speech models like [Whisper](https://github.com/openai/whisper) and [NLLB](https://github.com/facebookresearch/fairseq/tree/nllb).
+A Speech Service using AI with current models like [Whisper](https://github.com/openai/whisper) and [NLLB](https://github.com/facebookresearch/fairseq/tree/nllb).
 
 The tests are performed in a Docker container that also works in the Windows Subsystem for Linux (WSL).
 An NVIDIA graphics card with at least 4 GB VRAM is recommended, depending on the models used.

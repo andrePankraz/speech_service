@@ -17,9 +17,11 @@ import shutil
 import sys
 from tempfile import NamedTemporaryFile
 from timeit import default_timer as timer
-from typing import List, Optional, Union
+from typing import List
 from whisper_manager import WhisperManager, WhisperResult
 import yt_dlp
+
+from whisper_manager.whisper_manager import WhisperSegment
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -47,12 +49,12 @@ def _translate(texts: List[str], src_lang: str, tgt_lang: str) -> List[str]:
     return nllb_manager.translate(texts, src_lang, tgt_lang)
 
 
-def _transcribe(audio: Union[str, bytes], src_lang: Optional[str] = None) -> WhisperResult:
+def _transcribe(audio: str | bytes, src_lang: str | None = None) -> WhisperResult:
     whisper_manager = WhisperManager()
     return whisper_manager.transcribe(audio, src_lang)
 
 
-def _lang_iso_2_flores(language: str) -> Optional[str]:
+def _lang_iso_2_flores(language: str) -> str | None:
     # Convert whisper language codes into Flores-200 language codes for NLLB
     try:
         return next(k for k, v in LANGUAGES.items()
@@ -71,12 +73,12 @@ app = FastAPI()
 
 @app.on_event("startup")
 def startup_event():
-    log.warn("Startup...")
+    log.info("Startup...")
 
 
 @app.on_event("shutdown")
 def shutdown_event():
-    log.warn("Shutting down...")
+    log.info("Shutting down...")
     nllb_executor.shutdown()
     whisper_executor.shutdown()
 
@@ -116,7 +118,7 @@ async def identitfy_language(req: IdentityLanguageRequest) -> IdentityLanguageRe
 
 class TranslationRequest(BaseModel):
     texts: List[str]
-    src_lang: str = None
+    src_lang: str | None
     tgt_lang: str
 
 
@@ -131,7 +133,7 @@ async def translate(req: TranslationRequest) -> TranslationResponse:
     log.info(f"Translate")
     start = timer()
 
-    if req.src_lang != None:
+    if req.src_lang is not None:
         src_lang = req.src_lang
     else:
         src_lang = await asyncio.get_event_loop().run_in_executor(nllb_executor, _identitfy_language, req.texts[0])
@@ -144,17 +146,17 @@ async def translate(req: TranslationRequest) -> TranslationResponse:
 
 
 class TranscriptionResponse(BaseModel):
-    segments: List[dict]
-    src_lang: str
-    tgt_lang: str = None
+    segments: List[WhisperSegment]
+    src_lang: str | None
+    tgt_lang: str | None = None
 
 
-async def transcribe(path: Path, tgt_lang: Optional[str] = None) -> TranscriptionResponse:
+async def transcribe(path: Path, tgt_lang: str | None = None) -> TranscriptionResponse:
     # Push long running task into specialized Whisper single worker process
     whisper_result = await asyncio.get_event_loop().run_in_executor(
         whisper_executor, _transcribe, str(path))
-    src_lang = _lang_iso_2_flores(whisper_result.language)
-    if tgt_lang == src_lang or not tgt_lang in LANGUAGES:
+    src_lang = _lang_iso_2_flores(whisper_result.language) if whisper_result.language else None
+    if src_lang == None or src_lang == tgt_lang or tgt_lang not in LANGUAGES:
         # Target language is fine, nothing to do
         return TranscriptionResponse(segments=whisper_result.segments, src_lang=src_lang)
     # Push long running task into specialized NLLB single worker process
@@ -166,7 +168,7 @@ async def transcribe(path: Path, tgt_lang: Optional[str] = None) -> Transcriptio
 
 
 @app.post('/transcribe_upload/', response_model=TranscriptionResponse)
-async def transcribe_upload(file: UploadFile, tgt_lang: Optional[str] = Form(None)) -> TranscriptionResponse:
+async def transcribe_upload(file: UploadFile, tgt_lang: str | None = Form(None)) -> TranscriptionResponse:
     log.info(f"Transcribe Upload: {file.filename}")
     start = timer()
 
@@ -183,7 +185,7 @@ async def transcribe_upload(file: UploadFile, tgt_lang: Optional[str] = Form(Non
 
 class TranscriptionRequest(BaseModel):
     url: str
-    tgt_lang: str = None
+    tgt_lang: str | None
 
 
 @app.post('/transcribe_download/', response_model=TranscriptionResponse)
@@ -191,7 +193,8 @@ async def transcribe_download(req: TranscriptionRequest) -> TranscriptionRespons
     log.info(f"Transcribe Download: {req.url}")
     start = timer()
 
-    # see https://github.com/ytdl-org/youtube-dl/blob/3e4cedf9e8cd3157df2457df7274d0c842421945/youtube_dl/YoutubeDL.py#L137-L312
+    # see
+    # https://github.com/ytdl-org/youtube-dl/blob/3e4cedf9e8cd3157df2457df7274d0c842421945/youtube_dl/YoutubeDL.py#L137-L312
     filepath = None
 
     def download_hook(e):
@@ -203,6 +206,7 @@ async def transcribe_download(req: TranscriptionRequest) -> TranscriptionRespons
             filepath = Path(e['filename'])
         elif e['status'] == 'error':
             log.info(f"    ...download error: {e=}")
+            raise Exception(f'Could not download {filepath}: {e}')
 
     log.info(f"  Downloading {req.url!r}...")
     ydl_opts = {
@@ -213,8 +217,9 @@ async def transcribe_download(req: TranscriptionRequest) -> TranscriptionRespons
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([req.url])
+    if not filepath:
+        raise Exception(f'Could not download {filepath}!')
     log.info(f"  ...downloaded {req.url!r} as {filepath!r}...")
-
     try:
         result = await transcribe(filepath, req.tgt_lang)
     finally:
@@ -235,7 +240,7 @@ async def websocket_endpoint(websocket: WebSocket):
             # Push long running task into specialized Whisper single worker process
             whisper_result = await asyncio.get_event_loop().run_in_executor(
                 whisper_executor, _transcribe, data)
-            if whisper_result.segments:
+            if whisper_result.language and whisper_result.segments:
                 src_lang = _lang_iso_2_flores(whisper_result.language)
                 whisper_result.language = src_lang
 

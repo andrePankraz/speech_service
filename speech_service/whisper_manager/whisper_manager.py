@@ -11,7 +11,6 @@ import sys
 import threading
 from timeit import default_timer as timer
 import torch
-from typing import List, Optional, Union
 import whisper
 
 log = logging.getLogger(__name__)
@@ -19,22 +18,22 @@ log.setLevel(logging.DEBUG)
 
 
 class WhisperSegment(BaseModel):
-    id: int = None
-    start: int = None
-    end: int = None
-    text: str = None
+    id: int
+    start: int
+    end: int
+    text: str
 
 
 class WhisperResult(BaseModel):
-    language: str = None
-    segments: List[WhisperSegment] = None
+    language: str | None
+    segments: list[WhisperSegment]
 
 
 class WhisperManager:
 
     lock = threading.Lock()
 
-    def __new__(cls) -> type:
+    def __new__(cls):
         # Singleton!
         if not hasattr(cls, 'instance'):
             cls.instance = super(WhisperManager, cls).__new__(cls)
@@ -53,13 +52,13 @@ class WhisperManager:
             if torch.cuda.is_available():
                 log.info(f"CUDA available: {torch.cuda.get_device_name(0)}")
                 mem_info = torch.cuda.mem_get_info(0)
-                vram = round(mem_info[1]/1024**3, 1)
+                vram = round(mem_info[1] / 1024**3, 1)
                 log.info(
                     f"VRAM available: {round(mem_info[0]/1024**3,1)} GB out of {vram} GB")
                 if (vram >= 4):
                     self.device = 'cuda:0'
                     model_name = 'large' if vram >= 16 else 'medium' if vram >= 10 else 'small' if vram >= 8 else 'base'
-            model_folder = os.environ.get('MODEL_FOLDER')
+            model_folder = os.environ.get('MODEL_FOLDER', '/opt/speech_service/models/')
             log.info(
                 f"Loading model {model_name!r} in folder {model_folder!r}...")
 
@@ -71,7 +70,7 @@ class WhisperManager:
                 log.info(
                     f"VRAM left: {round(torch.cuda.mem_get_info(0)[0]/1024**3,1)} GB")
 
-    def transcribe(self, audio: Union[str, np.ndarray, torch.Tensor, bytes], src_lang: Optional[str] = None) -> WhisperResult:
+    def transcribe(self, audio: str | np.ndarray | torch.Tensor | bytes, src_lang: str | None = None) -> WhisperResult:
         log.info(f"Transcribing...")
         start = timer()
 
@@ -83,8 +82,8 @@ class WhisperManager:
             results = self.model.transcribe(audio, language=src_lang)
         log.info(f"...done in {timer() - start:.3f}s")
         segments = [WhisperSegment(
-            id=s['id'], start=s['start'], end=s['end'], text=s['text'].strip()) for s in results['segments']]
-        return WhisperResult(language=results['language'], segments=segments)
+            id=s['id'], start=s['start'], end=s['end'], text=s['text'].strip()) for s in results['segments']]   # type: ignore
+        return WhisperResult(language=results['language'], segments=segments)   # type: ignore
 
     def test(self) -> None:
         log.info(
