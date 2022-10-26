@@ -3,114 +3,120 @@
 
 <head>
   <meta charset="utf-8" />
-  <link rel="stylesheet" href="simple.css" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="css/simple.css" />
+  <link rel="stylesheet" href="css/style.css" />
   <title>Speech Service - Demo UI</title>
 
   <script>
-    const startAudio = async (audioCtx, volume_meter) => {
-      audioCtx.audioWorklet.addModule('js/RecorderProcessor.js')
-        .catch((err) => {
-          console.log(`The following audioWorklet.addModule error occurred: ${err}`)
-        })
-        .then(() => {
-          navigator.mediaDevices.getUserMedia({ audio: true })
-            .catch((err) => {
-              console.log(`The following mediaDevices.getUserMedia error occurred: ${err}`)
-            })
-            .then(stream => {
-              const audioTracks = stream.getAudioTracks()
-              if (audioTracks.length !== 1) {
-                throw new Error('Too many tracks!')
-              }
-              const audioTrack = audioTracks[0]
+    let audio_ctx = ''
 
-              const recorder = audioCtx.createMediaStreamSource(stream)
+    const startAudio = async () => {
+      if (audio_ctx) {
+        return
+      }
+      audio_ctx = new AudioContext()
+      try {
+        await audio_ctx.audioWorklet.addModule('js/RecorderProcessor.js')
+      }
+      catch (err) {
+        throw new Error(`The following audioWorklet.addModule error occurred: ${err}`)
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      } catch (err) {
+        throw new Error(`The following mediaDevices.getUserMedia error occurred: ${err}`)
+      }
+      const audioTracks = stream.getAudioTracks()
+      if (audioTracks.length !== 1) {
+        throw new Error('Too many tracks!')
+      }
+      const audioTrack = audioTracks[0]
 
-              // const gain = audioCtx.createGain()
-              // gain.gain.setValueAtTime(2, audioCtx.currentTime)
+      const recorder = audio_ctx.createMediaStreamSource(stream)
 
-              // const compressor = audioCtx.createDynamicsCompressor()
-              // compressor.threshold.setValueAtTime(-50, audioCtx.currentTime)
-              // compressor.knee.setValueAtTime(40, audioCtx.currentTime)
-              // compressor.ratio.setValueAtTime(20, audioCtx.currentTime)
-              // compressor.attack.setValueAtTime(0, audioCtx.currentTime)
-              // compressor.release.setValueAtTime(0.25, audioCtx.currentTime)
+      // const gain = audio_ctx.createGain()
+      // gain.gain.setValueAtTime(2, audio_ctx.currentTime)
 
-              const recorderWorklet = new AudioWorkletNode(audioCtx, 'recorder.worklet')
+      // const compressor = audio_ctx.createDynamicsCompressor()
+      // compressor.threshold.setValueAtTime(-50, audio_ctx.currentTime)
+      // compressor.knee.setValueAtTime(40, audio_ctx.currentTime)
+      // compressor.ratio.setValueAtTime(20, audio_ctx.currentTime)
+      // compressor.attack.setValueAtTime(0, audio_ctx.currentTime)
+      // compressor.release.setValueAtTime(0.25, audio_ctx.currentTime)
 
-              var ws = new WebSocket(`${(window.location.protocol === "https:") ? "wss://" : "ws://"}${window.location.host}/transcribe_record/ws`)
-              ws.addEventListener('error', (e) => {
-                console.log('WebSocket error: ', e)
-              })
-              ws.addEventListener('message', (e) => {
-                obj = JSON.parse(e.data)
-                src_lang.value = obj.language
-                obj.segments.forEach(e => {
-                  tgt_text.textContent += e.text + '\n'
-                })
-              })
+      const recorder_worklet = new AudioWorkletNode(audio_ctx, 'recorder.worklet')
 
-              recorder.connect(recorderWorklet)
-              // recorder.connect(compressor)
-              // compressor.connect(recorderWorklet)
-              recorderWorklet.connect(audioCtx.destination)
+      var ws = new WebSocket(`${(window.location.protocol === "https:") ? "wss://" : "ws://"}${window.location.host}/transcribe_record/ws`)
+      ws.addEventListener('error', ev => {
+        console.log('WebSocket error: ', ev)
+      })
+      ws.addEventListener('message', ev => {
+        obj = JSON.parse(ev.data)
+        src_lang.value = obj.language
+        obj.segments.forEach(s => tgt_text.textContent += s.text + '\n')
+      })
 
-              const buffer_size = 16000 * 30
-              const buffer = new Float32Array(buffer_size)
-              let samples_written = 0
+      recorder.connect(recorder_worklet)
+      // recorder.connect(compressor)
+      // compressor.connect(recorder_worklet)
+      recorder_worklet.connect(audio_ctx.destination)
 
-              recorderWorklet.port.onmessage = (e) => {
-                if (typeof (e.data) === 'number') {
-                  const db = e.data // decibel
-                  const min = -30
-                  const max = 50
-                  const volume_pos = 100 - (Math.max(min, db) - min) / (max - min) * 100
-                  record_btn.style.backgroundPosition = volume_pos + '%'
+      const buffer_size = 16000 * 30
+      const buffer = new Float32Array(buffer_size)
+      let samples_written = 0
 
-                  if (e.data <= -10) {
-                    if (samples_written > 16000) {
-                      console.log(`Send after sentence end: ${samples_written}`)
-                      ws.send(buffer.slice(0, samples_written))
-                    }
-                    samples_written = 0
-                  }
-                  return
-                }
-                msg_buffer = e.data
-                console.log(`Receiving audio data: ${msg_buffer.length} (${samples_written})`)
-                for (let i = 0; i < msg_buffer.length; i++) {
-                  buffer[samples_written++] = msg_buffer[i]
-                  if (samples_written === buffer_size) {
-                    console.log(`Send because buffer full: ${samples_written}`)
-                    ws.send(buffer.slice(0, samples_written))
-                    samples_written = 0
-                  }
-                }
-              }
-            })
-        })
+      recorder_worklet.port.onmessage = ev => {
+        if (typeof (ev.data) === 'number') {
+          const db = ev.data // decibel
+          const min = -30
+          const max = 50
+          const volume_pos = 100 - (Math.max(min, db) - min) / (max - min) * 100
+          // volume animation
+          record_btn.style.backgroundPosition = volume_pos + '%'
+
+          if (ev.data <= -10) {
+            if (samples_written > 16000) {
+              console.log(`Send after sentence end: ${samples_written}`)
+              ws.send(buffer.slice(0, samples_written))
+            }
+            samples_written = 0
+          }
+          return
+        }
+        msg_buffer = ev.data
+        console.log(`Receiving audio data: ${msg_buffer.length} (${samples_written})`)
+        for (let i = 0; i < msg_buffer.length; i++) {
+          buffer[samples_written++] = msg_buffer[i]
+          if (samples_written === buffer_size) {
+            console.log(`Send because buffer full: ${samples_written}`)
+            ws.send(buffer.slice(0, samples_written))
+            samples_written = 0
+          }
+        }
+      }
     }
 
-    window.onload = async () => {
+    window.onload = _ => {
       const record_btn = document.getElementById('record_btn')
       const src_lang = document.getElementById('src_lang')
       const tgt_text = document.getElementById('tgt_text')
 
-      record_btn.style.transition = 'none'
-      record_btn.addEventListener('click', async () => {
+      record_btn.addEventListener('click', async _ => {
         if (record_btn.textContent === 'Start recording') {
-          audioCtx = new AudioContext()
-          await startAudio(audioCtx)
-          audioCtx.resume().then(() => {
+          await startAudio()
+          // init volume animation
+          record_btn.style.background = 'linear-gradient(to right, rgb(255, 0, 34) 50%, #0d47a1 50%)'
+          record_btn.style.backgroundPosition = '100%'
+          record_btn.style.backgroundSize = '200% 100%'
+          audio_ctx.resume().then(() => {
             record_btn.textContent = "Recording... (Click stop for suspending record)"
           })
-        } else if (audioCtx.state === "suspended") {
-          audioCtx.resume().then(() => {
+        } else if (audio_ctx.state === "suspended") {
+          audio_ctx.resume().then(() => {
             record_btn.textContent = "Recording... (Click stop for suspending record)"
           })
-        } else if (audioCtx.state === "running") {
-          audioCtx.suspend().then(() => {
+        } else if (audio_ctx.state === "running") {
+          audio_ctx.suspend().then(() => {
             record_btn.textContent = "Resume recording"
           })
         }
@@ -147,7 +153,7 @@
     function in
     <a href="transcribe_upload.html">Transcribe Upload</a>.
   </p>
-  <button id="record_btn" class="progress">Start recording</button>
+  <button id="record_btn">Start recording</button>
   <label for="src_lang">Source language:</label>
   <select id="src_lang" disabled>
     <option value="">Will be autodetected...</option>

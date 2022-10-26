@@ -3,8 +3,8 @@
 
 <head>
   <meta charset="utf-8" />
-  <link rel="stylesheet" href="simple.css" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="css/simple.css" />
+  <link rel="stylesheet" href="css/style.css" />
   <title>Speech Service - Demo UI</title>
 
   <script>
@@ -25,29 +25,43 @@
       return `${zeroPad(hours, 2)}:${zeroPad(minutes, 2)}:${zeroPad(seconds, 2)},${zeroPad(milliseconds, 3)}`
     }
 
+    let xhr = ''
+
+    // upload progress animation
+    const on_progress = progress =>
+      file_upload.style.backgroundPosition = (100 - Math.round(progress * 100)) + '%'
+
     const upload = (file) => {
       // disable UI elements
-      file_upload.disabled = true
       record_btn.disabled = true
       // update UI infos
       src_file.textContent = `Filename: ${file.name}\n(Size: ${file.size} Bytes, Type: ${file.type})`
       src_lang.value = ''
       tgt_text.textContent = ''
 
-      const formData = new FormData()
-      formData.append('file', file)
+      file_upload.textContent = 'Uploading - Click for Abort'
+      // init upload progress animation
+      file_upload.style.background = 'linear-gradient(to right, rgb(255, 0, 34) 50%, white 50%)'
+      file_upload.style.backgroundPosition = '100%'
+      file_upload.style.backgroundSize = '200% 100%'
+
+      const form_data = new FormData()
+      form_data.append('file', file)
       if (tgt_lang.value) {
-        formData.append('tgt_lang', tgt_lang.value)
+        form_data.append('tgt_lang', tgt_lang.value)
       }
-      fetch('/transcribe_upload/', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json'
-        },
-        body: formData,
-      })
-        .then((res) => res.json())
-        .then((json) => {
+
+      upload_form_data('/transcribe_upload/', form_data, on_progress)
+        .then(response => {
+          xhr = ''
+          file_upload.textContent = 'Click for Upload or Drop file here'
+          file_upload.style.background = '' // stop upload progress animation
+          if (response.status === 200) {
+            return JSON.parse(response.text)
+          }
+          throw new Error(response.text)
+        })
+        .then(json => {
           src_lang.value = json.src_lang
           let srt = ''
           for (i = 0; i < json.segments.length; i++) {
@@ -60,12 +74,26 @@
           // reactivate UI elements
           file_upload.disabled = false
           record_btn.disabled = false
-          record_btn.classList.remove('transform-active')
+          record_btn.style.backgroundPosition = '100%'
         })
-        .catch(
-          (error) => console.log(error)
-        )
+        .catch(err => {
+          xhr = ''
+          file_upload.textContent = 'Click for Upload or Drop file here'
+          file_upload.style.background = '' // stop upload progress animation
+          src_file.textContent += `\n${err}`
+        })
     }
+
+    const upload_form_data = (url, form_data, on_progress) =>
+      new Promise((resolve, reject) => {
+        xhr = new XMLHttpRequest()
+        xhr.upload.addEventListener('progress', ev => on_progress(ev.loaded / ev.total))
+        xhr.addEventListener('load', _ => resolve({ status: xhr.status, text: xhr.responseText }))
+        xhr.addEventListener('error', _ => reject(new Error('File upload failed')))
+        xhr.addEventListener('abort', _ => reject(new Error('File upload aborted')))
+        xhr.open('POST', url, true)
+        xhr.send(form_data)
+      })
 
     const start_recording = async () => {
       record_btn.removeEventListener('click', start_recording)
@@ -77,11 +105,11 @@
       src_lang.value = ''
       tgt_text.textContent = ''
 
-      record_btn.classList.add('transform-active')  // start button animation
       media_recorder.start()
-      timeout_id = setTimeout(() => {
-        media_recorder.stop()
-      }, 25000)
+      timeout_id = setTimeout(() => media_recorder.stop(), 25000)
+      // start record time animation
+      record_btn.style.transition = 'all 25s linear'
+      record_btn.style.backgroundPosition = '0%'
     }
 
     const stop_recording = async () => {
@@ -89,44 +117,50 @@
     }
 
     window.onload = async () => {
-      const file_upload = document.getElementById("file_upload")
-      const file_drop = document.getElementById("file_drop")
-      const record_btn = document.getElementById("record_btn")
+      const file_upload = document.getElementById('file_upload')
+      const file_upload_input = document.getElementById('file_upload_input')
+      const record_btn = document.getElementById('record_btn')
       const src_file = document.getElementById('src_file')
       const src_lang = document.getElementById('src_lang')
       const tgt_lang = document.getElementById('tgt_lang')
       const tgt_text = document.getElementById('tgt_text')
       // init file select action
-      file_upload.addEventListener("change", async (e) => {
-        upload(file_upload.files[0])
-        file_upload.value = null
-      })
+      file_upload.onclick = ev => {
+        if (xhr) {
+          xhr.abort() // upload_form_data.catch() will reset UI
+          return
+        }
+        file_upload_input.onchange = ev => {
+          upload(ev.target.files[0])
+        }
+        file_upload_input.click()
+      }
       // init dropdown action
-      file_drop.ondragenter = async (e) => {
-        e.stopPropagation()
-        e.preventDefault()
-        if (e.target.classList.contains("dropzone")) {
-          e.target.classList.add("dragover")
+      file_upload.ondragenter = ev => {
+        ev.stopPropagation()
+        ev.preventDefault()
+        if (ev.target.classList.contains('dropzone')) {
+          ev.target.classList.add('dragover')
         }
       }
-      file_drop.ondragleave = async (e) => {
-        e.stopPropagation()
-        e.preventDefault()
-        if (e.target.classList.contains("dropzone")) {
-          e.target.classList.remove("dragover")
+      file_upload.ondragleave = ev => {
+        ev.stopPropagation()
+        ev.preventDefault()
+        if (ev.target.classList.contains('dropzone')) {
+          ev.target.classList.remove('dragover')
         }
       }
-      file_drop.ondragover = async (e) => {
-        e.stopPropagation()
-        e.preventDefault()
+      file_upload.ondragover = ev => {
+        ev.stopPropagation()
+        ev.preventDefault()
       }
-      file_drop.ondrop = async (e) => {
-        e.stopPropagation()
-        e.preventDefault()
-        if (e.target.classList.contains("dropzone")) {
-          e.target.classList.remove("dragover")
+      file_upload.ondrop = ev => {
+        ev.stopPropagation()
+        ev.preventDefault()
+        if (ev.target.classList.contains('dropzone')) {
+          ev.target.classList.remove('dragover')
         }
-        const dt = e.dataTransfer
+        const dt = ev.dataTransfer
         const files = dt.files
         const count = files.length
         upload(files[0])
@@ -137,8 +171,8 @@
           'Accept': 'application/json'
         }
       })
-        .then((res) => res.json())
-        .then((json) => {
+        .then(res => res.json())
+        .then(json => {
           for (let i = 0; i < json.length; i++) {
             const obj = json[i]
             const el = document.createElement('option')
@@ -148,11 +182,9 @@
             tgt_lang.appendChild(el.cloneNode(true))
           }
         })
-        .catch(
-          (error) => console.log(error)
-        )
+        .catch(error => console.log(error))
       // init change events
-      tgt_lang.addEventListener('change', async (e) => {
+      tgt_lang.addEventListener('change', _ => {
         // reset UI infos       
         src_file.textContent = ''
         src_lang.value = ''
@@ -163,17 +195,23 @@
         .then(stream => {
           media_recorder = new MediaRecorder(stream)
           let chunks = []
-          media_recorder.ondataavailable = (e) => chunks.push(e.data)
-          media_recorder.onstop = async (e) => {
+          media_recorder.ondataavailable = ev => chunks.push(ev.data)
+          media_recorder.onstop = _ => {
             record_btn.removeEventListener('click', stop_recording)
             record_btn.addEventListener('click', start_recording)
             clearTimeout(timeout_id)
-            record_btn.classList.remove('transform-active') // end button animation
+            // stop record time animation
+            record_btn.style.transition = 'all 3s linear'
+            record_btn.style.backgroundPosition = '100%'
             const blob = new Blob(chunks, { type: chunks[0].type })
             upload(blob)
             chunks = []
           }
           record_btn.addEventListener('click', start_recording)
+          // init record time animation
+          record_btn.style.background = 'linear-gradient(to right, rgb(255, 0, 34) 50%, #0d47a1 50%)'
+          record_btn.style.backgroundPosition = '100%'
+          record_btn.style.backgroundSize = '200% 100%'
         })
     }
   </script>
@@ -185,9 +223,10 @@
     a transcription. The files are deleted immediately after processing. Please don't use files with multiple minutes of
     content, because this would take a long time for uploading and processing in this demo instance.<br>
     You have 3 ways to upload content, either by file selection, by drag & drop or by recording.</p>
-  <label for="file_upload">Open a File with Audio:</label>
-  <input id="file_upload" type="file" accept="audio/*,video/*" />
-  <div id="file_drop" class="dropzone">Drop a File with Audio here</div>
+  <div id="file_upload" class="dropzone">
+    <p>Click for Upload or Drop file here</p>
+    <input id="file_upload_input" type="file" accept="audio/*,video/*" style="visibility:hidden" />
+  </div>
   <button id="record_btn" class="progress">Record up to 25 seconds of audio</button>
 
   <label for="src_file">Source file:</label>
