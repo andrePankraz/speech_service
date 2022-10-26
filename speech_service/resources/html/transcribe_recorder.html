@@ -101,6 +101,7 @@
       const src_lang = document.getElementById('src_lang')
       const tgt_text = document.getElementById('tgt_text')
 
+      // init record action events
       record_btn.addEventListener('click', async _ => {
         if (record_btn.textContent === 'Start recording') {
           await startAudio()

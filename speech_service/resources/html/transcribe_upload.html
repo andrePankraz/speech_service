@@ -183,7 +183,7 @@
           }
         })
         .catch(error => console.log(error))
-      // init change events
+      // init language change events
       tgt_lang.addEventListener('change', _ => {
         // reset UI infos       
         src_file.textContent = ''
@@ -227,7 +227,7 @@
     <p>Click for Upload or Drop file here</p>
     <input id="file_upload_input" type="file" accept="audio/*,video/*" style="visibility:hidden" />
   </div>
-  <button id="record_btn" class="progress">Record up to 25 seconds of audio</button>
+  <button id="record_btn">Record up to 25 seconds of audio</button>
 
   <label for="src_file">Source file:</label>
   <pre id="src_file"></pre>
