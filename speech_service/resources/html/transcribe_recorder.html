@@ -46,15 +46,15 @@
 
       const recorder_worklet = new AudioWorkletNode(audio_ctx, 'recorder.worklet')
 
-      var ws = new WebSocket(`${(window.location.protocol === "https:") ? "wss://" : "ws://"}${window.location.host}/transcribe_record/ws`)
-      ws.addEventListener('error', ev => {
-        console.log('WebSocket error: ', ev)
-      })
-      ws.addEventListener('message', ev => {
+      const ws = new WebSocket(`${(window.location.protocol === "https:") ? "wss://" : "ws://"}${window.location.host}/transcribe_record/ws`)
+      ws.onmessage = ev => {
         obj = JSON.parse(ev.data)
         src_lang.value = obj.language
         obj.segments.forEach(s => tgt_text.textContent += s.text + '\n')
-      })
+      }
+      ws.onerror = ev => {
+        console.log('WebSocket error: ', ev)
+      }
 
       recorder.connect(recorder_worklet)
       // recorder.connect(compressor)
@@ -102,33 +102,29 @@
       const tgt_text = document.getElementById('tgt_text')
 
       // init record action events
-      record_btn.addEventListener('click', async _ => {
+      record_btn.onclick = async _ => {
         if (!audio_ctx) {
           await start_audio()
-          audio_ctx.resume().then(() => {
-            record_btn.textContent = "Recording... (Click stop for suspending record)"
-          })
+          audio_ctx.resume().then(() => record_btn.textContent = "Recording... (Click stop for suspending record)")
           // init volume animation
           record_btn.style.background = 'linear-gradient(to left, rgb(255, 0, 34) 50%, #0d47a1 50%)'
           record_btn.style.backgroundSize = '200% 100%'
         } else if (audio_ctx.state === "running") {
-          audio_ctx.suspend().then(() => {
-            record_btn.textContent = "Resume recording"
-          })
+          audio_ctx.suspend().then(() => record_btn.textContent = "Resume recording")
         } else if (audio_ctx.state === "suspended") {
           audio_ctx.resume().then(() => {
             record_btn.textContent = "Recording... (Click stop for suspending record)"
           })
         }
-      })
+      }
       // init language dropdowns
       fetch('/languages', {
         headers: {
           'Accept': 'application/json'
         }
       })
-        .then((res) => res.json())
-        .then((json) => {
+        .then(res => res.json())
+        .then(json => {
           for (let i = 0; i < json.length; i++) {
             const obj = json[i]
             const el = document.createElement('option')
@@ -137,9 +133,7 @@
             src_lang.appendChild(el)
           }
         })
-        .catch(
-          (error) => console.log(error)
-        )
+        .catch(err => console.log(err))
     }
   </script>
 </head>

@@ -17,14 +17,12 @@
         },
         body: JSON.stringify({ texts: src_text.value.split('\n'), tgt_lang: tgt_lang.value })
       })
-        .then((res) => res.json())
-        .then((json) => {
+        .then(res => res.json())
+        .then(json => {
           src_lang.value = json.src_lang
           tgt_text.value = json.texts.join('\n')
         })
-        .catch(
-          (error) => console.log(error)
-        )
+        .catch(err => console.log(err))
     }
     window.onload = async () => {
       const src_text = document.getElementById('src_text')
@@ -38,8 +36,8 @@
           'Accept': 'application/json'
         }
       })
-        .then((res) => res.json())
-        .then((json) => {
+        .then(res => res.json())
+        .then(json => {
           for (let i = 0; i < json.length; i++) {
             const obj = json[i]
             const el = document.createElement('option')
@@ -50,19 +48,17 @@
           }
           tgt_lang.value = 'deu_Latn'
         })
-        .catch(
-          (error) => console.log(error)
-        )
+        .catch(err => console.log(err))
       // init change events
-      const on_change = (event) => {
+      const on_change = () => {
         clearTimeout(this.timeout_id)
         this.timeout_id = setTimeout(translate.bind(this), 2000)
         tgt_text.value = ''
       }
-      src_text.addEventListener('input', on_change)
-      tgt_lang.addEventListener('change', on_change)
+      src_text.oninput = on_change
+      tgt_lang.onchange = on_change
       // switch languages action
-      switch_btn.addEventListener('click', (event) => {
+      switch_btn.onclick = _ => {
         if (!src_lang.value) {
           return
         }
@@ -72,7 +68,7 @@
         src_lang.value = ''
         tgt_text.value = ''
         this.timeout_id = setTimeout(translate.bind(this), 2000)
-      })
+      }
     }
   </script>
 </head>

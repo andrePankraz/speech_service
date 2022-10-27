@@ -87,6 +87,7 @@
           xhr = ''
           file_upload.textContent = 'Click for Upload or Drop file here'
           file_upload.style.background = '' // stop upload progress animation
+          record_btn.disabled = false // reactivate UI elements
           src_lang.value = json.src_lang
           let srt = ''
           for (i = 0; i < json.segments.length; i++) {
@@ -96,14 +97,12 @@
             srt += segment.text + '\n\n'
           }
           tgt_text.textContent = srt
-          // reactivate UI elements
-          file_upload.disabled = false
-          record_btn.disabled = false
         })
         .catch(err => {
           xhr = ''
           file_upload.textContent = 'Click for Upload or Drop file here'
           file_upload.style.background = '' // stop upload progress animation
+          record_btn.disabled = false // reactivate UI elements
           src_file.textContent += `\n${err}`
         })
     }
@@ -111,32 +110,36 @@
     const upload_form_data = (url, form_data, on_progress) =>
       new Promise((resolve, reject) => {
         xhr = new XMLHttpRequest()
-        xhr.upload.addEventListener('progress', ev => on_progress(ev.loaded / ev.total))
-        xhr.addEventListener('load', _ => resolve({ status: xhr.status, text: xhr.responseText }))
-        xhr.addEventListener('error', _ => reject(new Error('File upload failed')))
-        xhr.addEventListener('abort', _ => reject(new Error('File upload aborted')))
+        xhr.upload.onprogress = ev => on_progress(ev.loaded / ev.total)
+        xhr.onload = _ => resolve({ status: xhr.status, text: xhr.responseText })
+        xhr.onabort = _ => reject(new Error('File upload aborted'))
+        xhr.ontimeout = _ => reject(new Error('File upload timeout'))
+        xhr.onerror = _ => reject(new Error('File upload failed'))
         xhr.open('POST', url, true)
+        xhr.timeout = 60000 // 60s
         xhr.send(form_data)
       })
 
     window.onload = async () => {
       const file_upload = document.getElementById('file_upload')
-      const file_upload_input = document.getElementById('file_upload_input')
       const record_btn = document.getElementById('record_btn')
       const src_file = document.getElementById('src_file')
       const src_lang = document.getElementById('src_lang')
       const tgt_lang = document.getElementById('tgt_lang')
       const tgt_text = document.getElementById('tgt_text')
       // init file select action
-      file_upload.onclick = ev => {
+      file_upload.onclick = _ => {
         if (xhr) {
           xhr.abort() // upload_form_data.catch() will reset UI
           return
         }
-        file_upload_input.onchange = ev => {
+        let input = document.createElement('input')
+        input.type = 'file'
+        input.accept = 'audio/*,video/*'
+        input.onchange = ev => {
           upload(ev.target.files[0])
         }
-        file_upload_input.click()
+        input.click()
       }
       // init dropdown action
       file_upload.ondragenter = ev => {
@@ -187,14 +190,14 @@
         })
         .catch(error => console.log(error))
       // init language change events
-      tgt_lang.addEventListener('change', _ => {
+      tgt_lang.onchange = _ => {
         // reset UI infos       
         src_file.textContent = ''
         src_lang.value = ''
         tgt_text.textContent = ''
-      })
+      }
       // init record action events
-      record_btn.addEventListener('click', async _ => {
+      record_btn.onclick = async _ => {
         if (!media_recorder) {
           await start_audio()
           media_recorder.start()
@@ -216,7 +219,7 @@
           record_btn.style.transition = 'all 25s linear'
           record_btn.style.backgroundPosition = '-100%'
         }
-      })
+      }
     }
   </script>
 </head>
@@ -228,8 +231,7 @@
     content, because this would take a long time for uploading and processing in this demo instance.<br>
     You have 3 ways to upload content, either by file selection, by drag & drop or by recording.</p>
   <div id="file_upload" class="dropzone">
-    <p>Click for Upload or Drop file here</p>
-    <input id="file_upload_input" type="file" accept="audio/*,video/*" style="visibility:hidden" />
+    Click for Upload or Drop file here
   </div>
   <button id="record_btn">Record up to 25 seconds of audio</button>
 
