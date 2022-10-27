@@ -8,6 +8,34 @@
   <title>Speech Service - Demo UI</title>
 
   <script>
+    let media_recorder = ''
+    let timeout_id = ''
+    let xhr = ''
+
+    const start_audio = async () => {
+      if (media_recorder) {
+        return
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      } catch (err) {
+        throw new Error(`Cannot get audio device: ${err}`)
+      }
+      media_recorder = new MediaRecorder(stream)
+      let chunks = []
+      media_recorder.ondataavailable = ev => chunks.push(ev.data)
+      media_recorder.onstop = _ => {
+        clearTimeout(timeout_id)
+        record_btn.textContent = 'Record up to 25 seconds of audio'
+        // stop record time animation
+        record_btn.style.transition = 'all 3s linear'
+        record_btn.style.backgroundPosition = '0%'
+        const blob = new Blob(chunks, { type: chunks[0].type })
+        upload(blob)
+        chunks = []
+      }
+    }
+
     const zeroPad = (num, places) => String(num).padStart(places, '0')
 
     const format_srt_timestamp = (seconds) => {
@@ -25,12 +53,6 @@
       return `${zeroPad(hours, 2)}:${zeroPad(minutes, 2)}:${zeroPad(seconds, 2)},${zeroPad(milliseconds, 3)}`
     }
 
-    let xhr = ''
-
-    // upload progress animation
-    const on_progress = progress =>
-      file_upload.style.backgroundPosition = (100 - Math.round(progress * 100)) + '%'
-
     const upload = (file) => {
       // disable UI elements
       record_btn.disabled = true
@@ -41,8 +63,7 @@
 
       file_upload.textContent = 'Uploading - Click for Abort'
       // init upload progress animation
-      file_upload.style.background = 'linear-gradient(to right, rgb(255, 0, 34) 50%, white 50%)'
-      file_upload.style.backgroundPosition = '100%'
+      file_upload.style.background = 'linear-gradient(to left, rgb(255, 0, 34) 50%, white 50%)'
       file_upload.style.backgroundSize = '200% 100%'
 
       const form_data = new FormData()
@@ -51,17 +72,21 @@
         form_data.append('tgt_lang', tgt_lang.value)
       }
 
+      // upload progress animation
+      const on_progress = progress =>
+        file_upload.style.backgroundPosition = -Math.round(progress * 100) + '%'
+
       upload_form_data('/transcribe_upload/', form_data, on_progress)
         .then(response => {
-          xhr = ''
-          file_upload.textContent = 'Click for Upload or Drop file here'
-          file_upload.style.background = '' // stop upload progress animation
           if (response.status === 200) {
             return JSON.parse(response.text)
           }
           throw new Error(response.text)
         })
         .then(json => {
+          xhr = ''
+          file_upload.textContent = 'Click for Upload or Drop file here'
+          file_upload.style.background = '' // stop upload progress animation
           src_lang.value = json.src_lang
           let srt = ''
           for (i = 0; i < json.segments.length; i++) {
@@ -74,7 +99,6 @@
           // reactivate UI elements
           file_upload.disabled = false
           record_btn.disabled = false
-          record_btn.style.backgroundPosition = '100%'
         })
         .catch(err => {
           xhr = ''
@@ -94,27 +118,6 @@
         xhr.open('POST', url, true)
         xhr.send(form_data)
       })
-
-    const start_recording = async () => {
-      record_btn.removeEventListener('click', start_recording)
-      record_btn.addEventListener('click', stop_recording)
-      // disable UI elements
-      file_upload.disabled = true
-      // reset UI infos
-      src_file.textContent = ''
-      src_lang.value = ''
-      tgt_text.textContent = ''
-
-      media_recorder.start()
-      timeout_id = setTimeout(() => media_recorder.stop(), 25000)
-      // start record time animation
-      record_btn.style.transition = 'all 25s linear'
-      record_btn.style.backgroundPosition = '0%'
-    }
-
-    const stop_recording = async () => {
-      media_recorder.stop()
-    }
 
     window.onload = async () => {
       const file_upload = document.getElementById('file_upload')
@@ -190,29 +193,30 @@
         src_lang.value = ''
         tgt_text.textContent = ''
       })
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .catch(console.error)
-        .then(stream => {
-          media_recorder = new MediaRecorder(stream)
-          let chunks = []
-          media_recorder.ondataavailable = ev => chunks.push(ev.data)
-          media_recorder.onstop = _ => {
-            record_btn.removeEventListener('click', stop_recording)
-            record_btn.addEventListener('click', start_recording)
-            clearTimeout(timeout_id)
-            // stop record time animation
-            record_btn.style.transition = 'all 3s linear'
-            record_btn.style.backgroundPosition = '100%'
-            const blob = new Blob(chunks, { type: chunks[0].type })
-            upload(blob)
-            chunks = []
-          }
-          record_btn.addEventListener('click', start_recording)
+      // init record action events
+      record_btn.addEventListener('click', async _ => {
+        if (!media_recorder) {
+          await start_audio()
+          media_recorder.start()
+          timeout_id = setTimeout(() => media_recorder.stop(), 25000)
+          record_btn.textContent = "Record up to 25 seconds of audio... (Click stop for suspending record)"
           // init record time animation
-          record_btn.style.background = 'linear-gradient(to right, rgb(255, 0, 34) 50%, #0d47a1 50%)'
-          record_btn.style.backgroundPosition = '100%'
+          record_btn.style.background = 'linear-gradient(to left, rgb(255, 0, 34) 50%, #0d47a1 50%)'
           record_btn.style.backgroundSize = '200% 100%'
-        })
+          // start record time animation
+          record_btn.style.transition = 'all 25s linear'
+          record_btn.style.backgroundPosition = '-100%'
+        } else if (media_recorder.state === "recording") {
+          media_recorder.stop()
+        } else if (media_recorder.state === "inactive") {
+          media_recorder.start()
+          timeout_id = setTimeout(() => media_recorder.stop(), 25000)
+          record_btn.textContent = "Record up to 25 seconds of audio... (Click stop for suspending record)"
+          // start record time animation
+          record_btn.style.transition = 'all 25s linear'
+          record_btn.style.backgroundPosition = '-100%'
+        }
+      })
     }
   </script>
 </head>

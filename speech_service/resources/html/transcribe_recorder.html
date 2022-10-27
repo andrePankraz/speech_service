@@ -10,7 +10,7 @@
   <script>
     let audio_ctx = ''
 
-    const startAudio = async () => {
+    const start_audio = async () => {
       if (audio_ctx) {
         return
       }
@@ -70,9 +70,9 @@
           const db = ev.data // decibel
           const min = -30
           const max = 50
-          const volume_pos = 100 - (Math.max(min, db) - min) / (max - min) * 100
+          const volume_pos = (Math.max(min, db) - min) / (max - min) * 100
           // volume animation
-          record_btn.style.backgroundPosition = volume_pos + '%'
+          record_btn.style.backgroundPosition = -volume_pos + '%'
 
           if (ev.data <= -10) {
             if (samples_written > 16000) {
@@ -103,22 +103,21 @@
 
       // init record action events
       record_btn.addEventListener('click', async _ => {
-        if (record_btn.textContent === 'Start recording') {
-          await startAudio()
-          // init volume animation
-          record_btn.style.background = 'linear-gradient(to right, rgb(255, 0, 34) 50%, #0d47a1 50%)'
-          record_btn.style.backgroundPosition = '100%'
-          record_btn.style.backgroundSize = '200% 100%'
+        if (!audio_ctx) {
+          await start_audio()
           audio_ctx.resume().then(() => {
             record_btn.textContent = "Recording... (Click stop for suspending record)"
+          })
+          // init volume animation
+          record_btn.style.background = 'linear-gradient(to left, rgb(255, 0, 34) 50%, #0d47a1 50%)'
+          record_btn.style.backgroundSize = '200% 100%'
+        } else if (audio_ctx.state === "running") {
+          audio_ctx.suspend().then(() => {
+            record_btn.textContent = "Resume recording"
           })
         } else if (audio_ctx.state === "suspended") {
           audio_ctx.resume().then(() => {
             record_btn.textContent = "Recording... (Click stop for suspending record)"
-          })
-        } else if (audio_ctx.state === "running") {
-          audio_ctx.suspend().then(() => {
-            record_btn.textContent = "Resume recording"
           })
         }
       })
