@@ -17,7 +17,6 @@ import shutil
 import sys
 from tempfile import NamedTemporaryFile
 from timeit import default_timer as timer
-from typing import List
 from whisper_manager import WhisperManager, WhisperResult
 import yt_dlp
 
@@ -44,7 +43,7 @@ def _identitfy_language(text: str) -> str:
     return nllb_manager.identify_language(text)
 
 
-def _translate(texts: List[str], src_lang: str, tgt_lang: str) -> List[str]:
+def _translate(texts: list[str], src_lang: str, tgt_lang: str) -> list[str]:
     nllb_manager = NllbManager()
     return nllb_manager.translate(texts, src_lang, tgt_lang)
 
@@ -64,16 +63,17 @@ def _lang_iso_2_flores(language: str) -> str | None:
         return None
 
 
-# Push long running GPU task into specialized single worker processes - one worker per GPU model
-nllb_executor = ProcessPoolExecutor(max_workers=1)
-whisper_executor = ProcessPoolExecutor(max_workers=1)
-
 app = FastAPI()
 
 
 @app.on_event("startup")
 def startup_event():
     log.info("Startup...")
+    # Push long running GPU task into specialized single worker processes - one worker per GPU model
+    global nllb_executor, whisper_executor
+    nllb_executor = ProcessPoolExecutor(max_workers=1)
+    whisper_executor = ProcessPoolExecutor(max_workers=1)
+    app.mount('/', StaticFiles(directory='resources/html', html=True), name='static')
 
 
 @app.on_event("shutdown")
@@ -90,8 +90,8 @@ class LanguagesResponse(BaseModel):
     language_name: str
 
 
-@app.get('/languages', response_model=List[LanguagesResponse])
-async def languages() -> List[LanguagesResponse]:
+@app.get('/languages', response_model=list[LanguagesResponse])
+async def languages() -> list[LanguagesResponse]:
     return [LanguagesResponse(language_id=k, language_name=v[0]) for k, v in LANGUAGES.items()]
 
 
@@ -117,13 +117,13 @@ async def identitfy_language(req: IdentityLanguageRequest) -> IdentityLanguageRe
 
 
 class TranslationRequest(BaseModel):
-    texts: List[str]
+    texts: list[str]
     src_lang: str | None
     tgt_lang: str
 
 
 class TranslationResponse(BaseModel):
-    texts: List[str]
+    texts: list[str]
     src_lang: str
     tgt_lang: str
 
@@ -146,7 +146,7 @@ async def translate(req: TranslationRequest) -> TranslationResponse:
 
 
 class TranscriptionResponse(BaseModel):
-    segments: List[WhisperSegment]
+    segments: list[WhisperSegment]
     src_lang: str | None
     tgt_lang: str | None = None
 
@@ -156,7 +156,7 @@ async def transcribe(path: Path, tgt_lang: str | None = None) -> TranscriptionRe
     whisper_result = await asyncio.get_event_loop().run_in_executor(
         whisper_executor, _transcribe, str(path))
     src_lang = _lang_iso_2_flores(whisper_result.language) if whisper_result.language else None
-    if src_lang == None or src_lang == tgt_lang or tgt_lang not in LANGUAGES:
+    if src_lang is None or src_lang == tgt_lang or tgt_lang not in LANGUAGES:
         # Target language is fine, nothing to do
         return TranscriptionResponse(segments=whisper_result.segments, src_lang=src_lang)
     # Push long running task into specialized NLLB single worker process
@@ -250,12 +250,10 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         await websocket.close()
 
-app.mount('/', StaticFiles(directory='resources/html' if os.path.exists('resources')
-          else 'speech_service/resources/html', html=True), name='static')
-
 
 def main():
     import uvicorn
+    os.chdir('speech_service')
     # just 1 worker, or models will be loaded multiple times!
     uvicorn.run('speech_service:app', host='0.0.0.0', port=8200)
 
