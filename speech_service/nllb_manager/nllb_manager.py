@@ -82,10 +82,12 @@ class NllbManager:
     def translate(self, texts: list[str], src_lang: str, tgt_lang: str) -> list[str]:
         log.info(f"Translating {texts=}...")
         start = timer()
-
-        # Text documents must be split into sentences. The model is restricted to 512 tokens, which means less than 500 words!
+        # The model is trained on sentence level and problems are possible with longer sequences. So it's a good idea to split the text.
+        # See paper: 'The maximum sequence length during training is 512 for both the encoder and the decoder.'
+        # The model is restricted to 512 tokens, which means less than 500 words! Text documents should be split into sentences.
         # NLLB used and extended the sentence embedding model LASER, which also contains a sentence splitter as utils.
         # see sentence_cleaner_splitter@git+https://github.com/facebookresearch/LASER.git#subdirectory=utils
+        # This is a small AI-model, which will be downloaded in the background.
         # TODO Sentence split might not be enough and a further split on token level might be becessary.
         # Check for further splitting:
         # https://towardsdatascience.com/how-to-apply-transformers-to-any-length-of-text-a5601410af7f
@@ -103,6 +105,7 @@ class NllbManager:
                                         tokenizer=self.tokenizer,
                                         src_lang=src_lang,
                                         tgt_lang=tgt_lang,
+                                        max_length=512,
                                         device=self.device)
 #        norm_texts = list(filter(lambda t: len(t), map(
 #            lambda t: t.replace('\u200b', ' ').strip(), texts)))
