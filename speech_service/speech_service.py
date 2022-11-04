@@ -17,10 +17,8 @@ import shutil
 import sys
 from tempfile import NamedTemporaryFile
 from timeit import default_timer as timer
-from whisper_manager import WhisperManager, WhisperResult
+from whisper_manager import WhisperManager, WhisperResult, WhisperSegment
 import yt_dlp
-
-from whisper_manager.whisper_manager import WhisperSegment
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 log = logging.getLogger(__name__)

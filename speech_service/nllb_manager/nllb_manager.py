@@ -50,8 +50,8 @@ class NllbManager:
             # Load model NLLB
             # facebook/nllb-200-distilled-600M, facebook/nllb-200-distilled-1.3B, facebook/nllb-200-3.3B
             # VRAM at least: 4 | 8 | 16 GB VRAM
-            model_name = 'facebook/nllb-200-distilled-600M'
-            self.device = 'cpu'
+            model_id = 'facebook/nllb-200-distilled-600M'
+            device = 'cpu'
             if torch.cuda.is_available():
                 log.info(f"CUDA available: {torch.cuda.get_device_name(0)}")
                 mem_info = torch.cuda.mem_get_info(0)
@@ -59,20 +59,16 @@ class NllbManager:
                 log.info(
                     f"VRAM available: {round(mem_info[0]/1024**3,1)} GB out of {vram} GB")
                 if (vram >= 4):
-                    self.device = 'cuda:0'
-                    model_name = 'facebook/nllb-200-3.3B' if vram >= 16 else 'facebook/nllb-200-distilled-1.3B' if vram >= 8 else 'facebook/nllb-200-distilled-600M'
-            log.info(
-                f"Loading model {model_name!r} in folder {model_folder!r}...")
+                    device = 'cuda:0'
+                    model_id = 'facebook/nllb-200-3.3B' if vram >= 16 else 'facebook/nllb-200-distilled-1.3B' if vram >= 8 else 'facebook/nllb-200-distilled-600M'
+            log.info(f"Loading model {model_id!r} in folder {model_folder!r}...")
 
-            self.model = AutoModelForSeq2SeqLM.from_pretrained(
-                model_name, cache_dir=model_folder).to(self.device)
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                model_name, cache_dir=model_folder)
+            self.tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=model_folder)
+            self.model = AutoModelForSeq2SeqLM.from_pretrained(model_id, cache_dir=model_folder).to(device)
 
             log.info("...done.")
-            if self.device != 'cpu':
-                log.info(
-                    f"VRAM left: {round(torch.cuda.mem_get_info(0)[0]/1024**3,1)} GB")
+            if device != 'cpu':
+                log.info(f"VRAM left: {round(torch.cuda.mem_get_info(0)[0]/1024**3,1)} GB")
 
     def identify_language(self, text: str) -> str:
         # (('__label__deu_Latn',), array([1.00001001]))
@@ -106,7 +102,7 @@ class NllbManager:
                                         src_lang=src_lang,
                                         tgt_lang=tgt_lang,
                                         max_length=512,
-                                        device=self.device)
+                                        device=self.model.device)
 #        norm_texts = list(filter(lambda t: len(t), map(
 #            lambda t: t.replace('\u200b', ' ').strip(), texts)))
         results = translation_pipeline(norm_texts)

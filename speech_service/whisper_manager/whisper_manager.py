@@ -44,31 +44,27 @@ class WhisperManager:
             return
         with WhisperManager.lock:
             # Load model Whisper
-            # see _MODELS: tiny, base, small, medium, large
+            # see _MODELS: tiny (40M), base (80M), small (250M), medium (800M), large (1.5B)
             # model card: https://github.com/openai/whisper/blob/main/model-card.md
             # 4 GB VRAM not enough for combining small & NLLB 600
             model_name = 'small'
-            self.device = 'cpu'
+            device = 'cpu'
             if torch.cuda.is_available():
                 log.info(f"CUDA available: {torch.cuda.get_device_name(0)}")
                 mem_info = torch.cuda.mem_get_info(0)
                 vram = round(mem_info[1] / 1024**3, 1)
-                log.info(
-                    f"VRAM available: {round(mem_info[0]/1024**3,1)} GB out of {vram} GB")
+                log.info(f"VRAM available: {round(mem_info[0]/1024**3,1)} GB out of {vram} GB")
                 if (vram >= 4):
-                    self.device = 'cuda:0'
+                    device = 'cuda:0'
                     model_name = 'large' if vram >= 16 else 'medium' if vram >= 10 else 'small' if vram >= 8 else 'base'
             model_folder = os.environ.get('MODEL_FOLDER', '/opt/speech_service/models/')
-            log.info(
-                f"Loading model {model_name!r} in folder {model_folder!r}...")
+            log.info(f"Loading model {model_name!r} in folder {model_folder!r}...")
 
-            self.model = whisper.load_model(
-                model_name, device=self.device, download_root=model_folder)
+            self.model = whisper.load_model(model_name, device=device, download_root=model_folder)
 
             log.info("...done.")
-            if self.device != 'cpu':
-                log.info(
-                    f"VRAM left: {round(torch.cuda.mem_get_info(0)[0]/1024**3,1)} GB")
+            if device != 'cpu':
+                log.info(f"VRAM left: {round(torch.cuda.mem_get_info(0)[0]/1024**3,1)} GB")
 
     def transcribe(self, audio: str | np.ndarray | torch.Tensor | bytes, src_lang: str | None = None) -> WhisperResult:
         log.info(f"Transcribing...")
@@ -81,13 +77,12 @@ class WhisperManager:
         with WhisperManager.lock:
             results = self.model.transcribe(audio, language=src_lang)
         log.info(f"...done in {timer() - start:.3f}s")
-        segments = [WhisperSegment(
-            id=s['id'], start=s['start'], end=s['end'], text=s['text'].strip()) for s in results['segments']]   # type: ignore
+        segments = [WhisperSegment(id=s['id'], start=s['start'], end=s['end'], text=s['text'].strip())
+                    for s in results['segments']]  # type: ignore
         return WhisperResult(language=results['language'], segments=segments)   # type: ignore
 
     def test(self) -> None:
-        log.info(
-            f"Result: {self.transcribe('uploads/ivan_8848_1280x720_1578090984604303362.mp4')}")
+        log.info(f"Result: {self.transcribe('uploads/ivan_8848_1280x720_1578090984604303362.mp4')}")
 
 
 def main():

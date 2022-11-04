@@ -14,7 +14,8 @@ CUDA is part of the Docker image, only the NVIDIA graphics driver needs to be in
 
 - Clone https://github.com/andrePankraz/speech_service
 
-      docker compose up
+      $ export DOCKER_BUILDKIT=1
+      $ docker compose up
 
   - Will take some time at first start (images & packages are downloaded, >10 GB)
   - Wait & check in up and running
@@ -25,7 +26,8 @@ CUDA is part of the Docker image, only the NVIDIA graphics driver needs to be in
 
 - Clone https://github.com/andrePankraz/speech_service
 
-      docker compose --env-file docker/.envs/dev.env up
+      $ export DOCKER_BUILDKIT=1
+      $ docker compose --env-file docker/.envs/dev.env up
 
   - Will take some time at first start (images & packages are downloaded, >10 GB)
   - Wait & check in up and running
