@@ -10,7 +10,7 @@
   <script>
     const zeroPad = (num, places) => String(num).padStart(places, '0')
 
-    const format_srt_timestamp = (seconds) => {
+    const format_srt_timestamp = seconds => {
       milliseconds = Math.round(seconds * 1000.0)
 
       hours = Math.floor(milliseconds / 3_600_000)
@@ -25,7 +25,7 @@
       return `${zeroPad(hours, 2)}:${zeroPad(minutes, 2)}:${zeroPad(seconds, 2)},${zeroPad(milliseconds, 3)}`
     }
 
-    const upload = (url) => {
+    const upload = url => {
       submit_btn.disabled = true
       src_lang.value = ''
       tgt_text.textContent = ''
@@ -38,8 +38,13 @@
         },
         body: JSON.stringify({ url: src_url.value, tgt_lang: tgt_lang.value })
       })
-        .then((res) => res.json())
-        .then((json) => {
+        .then(async res => {
+          if (res.status === 200) {
+            return res.json()
+          }
+          throw new Error(await res.text())
+        })
+        .then(json => {
           src_lang.value = json.src_lang
           let srt = ''
           for (i = 0; i < json.segments.length; i++) {
@@ -51,8 +56,8 @@
           tgt_text.textContent = srt
           submit_btn.disabled = false
         })
-        .catch(() => {
-          (error) => console.log(error)
+        .catch(err => {
+          tgt_text.textContent = err
           submit_btn.disabled = false
         })
     }
@@ -89,7 +94,12 @@
           'Accept': 'application/json'
         }
       })
-        .then(res => res.json())
+        .then(async res => {
+          if (res.status === 200) {
+            return res.json()
+          }
+          throw new Error(await res.text())
+        })
         .then(json => {
           for (let i = 0; i < json.length; i++) {
             const obj = json[i]
@@ -100,7 +110,7 @@
             tgt_lang.appendChild(el.cloneNode(true))
           }
         })
-        .catch(err => console.log(err))
+        .catch(err => tgt_text.textContent = err)
       // target language change event
       tgt_lang.onchange = _ => tgt_text.textContent = ''
     }
@@ -111,7 +121,7 @@
   <h1>Transcribe Download</h1>
   <p>In the following Demo you can enter a Youtube Link (normal YT Videos or YT Shorts) and get a transcription.
     Please don't use links to files with multiple minutes of content, this would take a long time for downloading and
-    processing in this demo instance.<br>
+    processing in this demo instance. Restrict to 5 MB.<br>
     Example: https://www.youtube.com/watch?v=ahmPEzHAD1s</p>
   <label for="src_url">Enter a Youtube Video URL:</label>
   <input id="src_url" type="url" placeholder="https://www.youtube.com/watch?v=ahmPEzHAD1s"

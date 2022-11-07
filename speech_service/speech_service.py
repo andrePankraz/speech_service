@@ -5,7 +5,7 @@ Module for Speech Service.
 '''
 import asyncio
 from concurrent.futures import ProcessPoolExecutor
-from fastapi import FastAPI, Form, UploadFile, WebSocket
+from fastapi import FastAPI, Form, HTTPException, status, UploadFile, WebSocket
 from fastapi.staticfiles import StaticFiles
 import logging
 from nllb_manager import NllbManager, LANGUAGES
@@ -204,19 +204,19 @@ async def transcribe_download(req: TranscriptionRequest) -> TranscriptionRespons
             filepath = Path(e['filename'])
         elif e['status'] == 'error':
             log.info(f"    ...download error: {e=}")
-            raise Exception(f'Could not download {filepath}: {e}')
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f'Could not download {req.url!r}: {e}')
 
     log.info(f"  Downloading {req.url!r}...")
     ydl_opts = {
-        # %{title}
-        'outtmpl': f"/opt/speech_service/uploads/%(id)s{shortuuid.uuid()}.%(ext)s",
         'format': 'bestaudio/best',
+        'max_filesize': 5000000,
+        'outtmpl': f"/opt/speech_service/uploads/%(id)s{shortuuid.uuid()}.%(ext)s",
         'progress_hooks': [download_hook]
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([req.url])
     if not filepath:
-        raise Exception(f'Could not download {filepath}!')
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f'Could not download {req.url!r}!')
     log.info(f"  ...downloaded {req.url!r} as {filepath!r}...")
     try:
         result = await transcribe(filepath, req.tgt_lang)
