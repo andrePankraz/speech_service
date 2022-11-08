@@ -56,7 +56,7 @@ class WhisperManager:
                 log.info(f"VRAM available: {round(mem_info[0]/1024**3,1)} GB out of {vram} GB")
                 if (vram >= 4):
                     device = 'cuda:0'
-                    model_name = 'large' if vram >= 16 else 'medium' if vram >= 10 else 'small' if vram >= 8 else 'base'
+                    model_name = 'large' if vram >= 32 else 'medium' if vram >= 12 else 'small' if vram >= 8 else 'base'
             model_folder = os.environ.get('MODEL_FOLDER', '/opt/speech_service/models/')
             log.info(f"Loading model {model_name!r} in folder {model_folder!r}...")
 

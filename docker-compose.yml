@@ -21,7 +21,12 @@ services:
       resources:
         reservations:
           devices:
-          - capabilities: [gpu]
+          - driver: nvidia
+            capabilities: [gpu]
 networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1450
   app-tier:
     driver: bridge

@@ -41,12 +41,6 @@ class NllbManager:
 
             model_folder = os.environ.get('MODEL_FOLDER', '/opt/speech_service/models/')
 
-            # Load model for Language Identification (LID)
-            # https://github.com/facebookresearch/fairseq/tree/nllb#lid-model
-            download("https://dl.fbaipublicfiles.com/nllb/lid/lid218e.bin",
-                     model_folder + "lid218e.bin")
-            self.lid_model = fasttext.load_model(model_folder + "lid218e.bin")
-
             # Load model NLLB
             # facebook/nllb-200-distilled-600M, facebook/nllb-200-distilled-1.3B, facebook/nllb-200-3.3B
             # VRAM at least: 4 | 8 | 16 GB VRAM
@@ -60,7 +54,7 @@ class NllbManager:
                     f"VRAM available: {round(mem_info[0]/1024**3,1)} GB out of {vram} GB")
                 if (vram >= 4):
                     device = 'cuda:0'
-                    model_id = 'facebook/nllb-200-3.3B' if vram >= 16 else 'facebook/nllb-200-distilled-1.3B' if vram >= 8 else 'facebook/nllb-200-distilled-600M'
+                    model_id = 'facebook/nllb-200-3.3B' if vram >= 32 else 'facebook/nllb-200-distilled-1.3B' if vram >= 12 else 'facebook/nllb-200-distilled-600M'
             log.info(f"Loading model {model_id!r} in folder {model_folder!r}...")
 
             self.tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=model_folder)
@@ -69,6 +63,13 @@ class NllbManager:
             log.info("...done.")
             if device != 'cpu':
                 log.info(f"VRAM left: {round(torch.cuda.mem_get_info(0)[0]/1024**3,1)} GB")
+
+            # Load model for Language Identification (LID)
+            # https://github.com/facebookresearch/fairseq/tree/nllb#lid-model
+            download("https://dl.fbaipublicfiles.com/nllb/lid/lid218e.bin",
+                     model_folder + "lid218e.bin")
+            self.lid_model = fasttext.load_model(model_folder + "lid218e.bin")
+
 
     def identify_language(self, text: str) -> str:
         # (('__label__deu_Latn',), array([1.00001001]))
