@@ -70,7 +70,6 @@ class NllbManager:
                      model_folder + "lid218e.bin")
             self.lid_model = fasttext.load_model(model_folder + "lid218e.bin")
 
-
     def identify_language(self, text: str) -> str:
         # (('__label__deu_Latn',), array([1.00001001]))
         prediction = self.lid_model.predict(text)
@@ -98,12 +97,16 @@ class NllbManager:
                 norm_texts.append(line.strip())
         # Init pipeline - seems to be thread save
         translation_pipeline = pipeline('translation',
-                                        model=self.model,
+                                        self.model,
                                         tokenizer=self.tokenizer,
+                                        device=self.model.device,
                                         src_lang=src_lang,
                                         tgt_lang=tgt_lang,
                                         max_length=512,
-                                        device=self.model.device)
+                                        batch_size=16,
+                                        # beam search with early stopping, better than greedy:
+                                        num_beams=3,
+                                        early_stopping=True)
 #        norm_texts = list(filter(lambda t: len(t), map(
 #            lambda t: t.replace('\u200b', ' ').strip(), texts)))
         results = translation_pipeline(norm_texts)
