@@ -27,7 +27,6 @@
 
     const upload = url => {
       submit_btn.disabled = true
-      src_lang.value = ''
       tgt_text.textContent = ''
 
       fetch('/transcribe_download/', {
@@ -36,7 +35,7 @@
           'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ url: src_url.value, tgt_lang: tgt_lang.value })
+        body: JSON.stringify({ url: src_url.value, src_lang: src_lang.value, tgt_lang: tgt_lang.value })
       })
         .then(async res => {
           if (res.status === 200) {
@@ -128,8 +127,8 @@
     pattern="https://www.youtube.com/(watch\?v=.*|shorts/.*)" size="100" required>
   <button id="submit_btn">Submit</button>
   <label for="src_lang">Source language:</label>
-  <select id="src_lang" disabled>
-    <option value="">Will be autodetected...</option>
+  <select id="src_lang">
+    <option value="">Autodetected from first 30 secs - only change if not OK</option>
   </select>
   <label for="tgt_lang">Target language:</label>
   <select id="tgt_lang">

@@ -48,6 +48,7 @@ class WhisperManager:
             # model card: https://github.com/openai/whisper/blob/main/model-card.md
             # 4 GB VRAM not enough for combining small & NLLB 600
             model_name = 'small'
+            model_folder = os.environ.get('MODEL_FOLDER', '/opt/speech_service/models/')
             device = 'cpu'
             if torch.cuda.is_available():
                 log.info(f"CUDA available: {torch.cuda.get_device_name(0)}")
@@ -57,11 +58,9 @@ class WhisperManager:
                 if (vram >= 4):
                     device = 'cuda:0'
                     model_name = 'large' if vram >= 32 else 'medium' if vram >= 12 else 'small' if vram >= 8 else 'base'
-            model_folder = os.environ.get('MODEL_FOLDER', '/opt/speech_service/models/')
+            model_name = 'small'
             log.info(f"Loading model {model_name!r} in folder {model_folder!r}...")
-
             self.model = whisper.load_model(model_name, device=device, download_root=model_folder)
-
             log.info("...done.")
             if device != 'cpu':
                 log.info(f"VRAM left: {round(torch.cuda.mem_get_info(0)[0]/1024**3,1)} GB")
@@ -75,11 +74,11 @@ class WhisperManager:
         # Whisper can also directly translate via parameter: task='translate'
         # but quality is much worse than NLLB
         with WhisperManager.lock:
-            results = self.model.transcribe(audio, language=src_lang)
+            results = self.model.transcribe(audio, language=src_lang if src_lang else None)  # explicit None necessary
         log.info(f"...done in {timer() - start:.3f}s")
-        segments = [WhisperSegment(id=s['id'], start=s['start'], end=s['end'], text=s['text'].strip())
-                    for s in results['segments']]  # type: ignore
-        return WhisperResult(language=results['language'], segments=segments)   # type: ignore
+        segments = [WhisperSegment(id=s['id'], start=s['start'], end=s['end'], text=s['text'].strip())  # type: ignore
+                    for s in results['segments']]
+        return WhisperResult(language=results['language'], segments=segments)  # type: ignore
 
     def test(self) -> None:
         log.info(f"Result: {self.transcribe('uploads/ivan_8848_1280x720_1578090984604303362.mp4')}")

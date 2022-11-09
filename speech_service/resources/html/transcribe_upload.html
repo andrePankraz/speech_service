@@ -62,7 +62,6 @@
       record_btn.disabled = true
       // update UI infos
       src_file.textContent = `Filename: ${file.name}\n(Size: ${file.size} Bytes, Type: ${file.type})`
-      src_lang.value = ''
       tgt_text.textContent = ''
 
       file_upload.textContent = 'Uploading - Click for Abort'
@@ -72,6 +71,9 @@
 
       const form_data = new FormData()
       form_data.append('file', file)
+      if (src_lang.value) {
+        form_data.append('src_lang', src_lang.value)
+      }
       if (tgt_lang.value) {
         form_data.append('tgt_lang', tgt_lang.value)
       }
@@ -248,8 +250,8 @@
   <label for="src_file">Source file:</label>
   <pre id="src_file"></pre>
   <label for="src_lang">Source language:</label>
-  <select id="src_lang" disabled>
-    <option value="">Will be autodetected...</option>
+  <select id="src_lang">
+    <option value="">Autodetected from first 30 secs - only change if not OK</option>
   </select>
   <label for="tgt_lang">Target language:</label>
   <select id="tgt_lang">

@@ -36,15 +36,11 @@ class NllbManager:
         if hasattr(self, 'sentence_splitters'):
             return
         with NllbManager.lock:
-            # Init cache for sentence splitters
-            self.sentence_splitters: dict[str, SentenceSplitClean] = {}
-
-            model_folder = os.environ.get('MODEL_FOLDER', '/opt/speech_service/models/')
-
             # Load model NLLB
             # facebook/nllb-200-distilled-600M, facebook/nllb-200-distilled-1.3B, facebook/nllb-200-3.3B
             # VRAM at least: 4 | 8 | 16 GB VRAM
             model_id = 'facebook/nllb-200-distilled-600M'
+            model_folder = os.environ.get('MODEL_FOLDER', '/opt/speech_service/models/')
             device = 'cpu'
             if torch.cuda.is_available():
                 log.info(f"CUDA available: {torch.cuda.get_device_name(0)}")
@@ -56,10 +52,8 @@ class NllbManager:
                     device = 'cuda:0'
                     model_id = 'facebook/nllb-200-3.3B' if vram >= 32 else 'facebook/nllb-200-distilled-1.3B' if vram >= 12 else 'facebook/nllb-200-distilled-600M'
             log.info(f"Loading model {model_id!r} in folder {model_folder!r}...")
-
             self.tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=model_folder)
             self.model = AutoModelForSeq2SeqLM.from_pretrained(model_id, cache_dir=model_folder).to(device)
-
             log.info("...done.")
             if device != 'cpu':
                 log.info(f"VRAM left: {round(torch.cuda.mem_get_info(0)[0]/1024**3,1)} GB")
@@ -69,6 +63,9 @@ class NllbManager:
             download("https://dl.fbaipublicfiles.com/nllb/lid/lid218e.bin",
                      model_folder + "lid218e.bin")
             self.lid_model = fasttext.load_model(model_folder + "lid218e.bin")
+
+            # Init cache for sentence splitters
+            self.sentence_splitters: dict[str, SentenceSplitClean] = {}
 
     def identify_language(self, text: str) -> str:
         # (('__label__deu_Latn',), array([1.00001001]))
@@ -88,14 +85,19 @@ class NllbManager:
         # Check for further splitting:
         # https://towardsdatascience.com/how-to-apply-transformers-to-any-length-of-text-a5601410af7f
         if src_lang not in self.sentence_splitters:
-            self.sentence_splitters[src_lang] = SentenceSplitClean(
-                src_lang, 'default')
+            self.sentence_splitters[src_lang] = SentenceSplitClean(src_lang, 'default')
         sentence_splitter = self.sentence_splitters[src_lang]
+
+        # Split into sentences and remember original indices
         norm_texts = []
-        for text in texts:
+        norm_indices = []
+        for i, text in enumerate(texts):
             for _, _, line in sentence_splitter(text.replace('\u200b', ' ')):
-                norm_texts.append(line.strip())
-        # Init pipeline - seems to be thread save
+                if line.strip():
+                    norm_texts.append(line)
+                    norm_indices.append(i)
+
+        # Init pipeline - seems to be thread save, but is bound to specific language pairs, don't cache...
         translation_pipeline = pipeline('translation',
                                         self.model,
                                         tokenizer=self.tokenizer,
@@ -107,8 +109,12 @@ class NllbManager:
                                         # beam search with early stopping, better than greedy:
                                         num_beams=3,
                                         early_stopping=True)
-#        norm_texts = list(filter(lambda t: len(t), map(
-#            lambda t: t.replace('\u200b', ' ').strip(), texts)))
-        results = translation_pipeline(norm_texts)
-        log.info(f"...done in {timer() - start:.3f}s\n  {results=}")
-        return [result.get('translation_text') for result in results]   # type: ignore
+        res_texts = translation_pipeline(norm_texts)
+
+        # "Unsplit" sentences with remembered original indices
+        tgt_texts = [''] * len(texts)
+        for i, t in zip(norm_indices, res_texts):
+            tgt_texts[i] += t['translation_text'] + ' '
+
+        log.info(f"...done in {timer() - start:.3f}s\n  {res_texts=}")
+        return tgt_texts

@@ -149,10 +149,12 @@ class TranscriptionResponse(BaseModel):
     tgt_lang: str | None = None
 
 
-async def transcribe(path: Path, tgt_lang: str | None = None) -> TranscriptionResponse:
+async def transcribe(path: Path, src_lang: str | None = None, tgt_lang: str | None = None) -> TranscriptionResponse:
+    if src_lang and LANGUAGES[src_lang]:
+        src_lang = LANGUAGES[src_lang][1]  # could also be reset to None, it's fine
     # Push long running task into specialized Whisper single worker process
     whisper_result = await asyncio.get_event_loop().run_in_executor(
-        whisper_executor, _transcribe, str(path))
+        whisper_executor, _transcribe, str(path), src_lang)
     src_lang = _lang_iso_2_flores(whisper_result.language) if whisper_result.language else None
     if src_lang is None or src_lang == tgt_lang or tgt_lang not in LANGUAGES:
         # Target language is fine, nothing to do
@@ -166,13 +168,13 @@ async def transcribe(path: Path, tgt_lang: str | None = None) -> TranscriptionRe
 
 
 @app.post('/transcribe_upload/', response_model=TranscriptionResponse)
-async def transcribe_upload(file: UploadFile, tgt_lang: str | None = Form(None)) -> TranscriptionResponse:
+async def transcribe_upload(file: UploadFile, src_lang: str | None = Form(None), tgt_lang: str | None = Form(None)) -> TranscriptionResponse:
     log.info(f"Transcribe Upload: {file.filename}")
     start = timer()
 
     filepath = save_upload_file_tmp(file)
     try:
-        result = await transcribe(filepath, tgt_lang)
+        result = await transcribe(filepath, src_lang, tgt_lang)
     finally:
         filepath.unlink()  # Delete the temp file
 
@@ -183,6 +185,7 @@ async def transcribe_upload(file: UploadFile, tgt_lang: str | None = Form(None))
 
 class TranscriptionRequest(BaseModel):
     url: str
+    src_lang: str | None
     tgt_lang: str | None
 
 
@@ -219,7 +222,7 @@ async def transcribe_download(req: TranscriptionRequest) -> TranscriptionRespons
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f'Could not download {req.url!r}!')
     log.info(f"  ...downloaded {req.url!r} as {filepath!r}...")
     try:
-        result = await transcribe(filepath, req.tgt_lang)
+        result = await transcribe(filepath, req.src_lang, req.tgt_lang)
     finally:
         filepath.unlink()  # Delete the temp file
 
