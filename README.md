@@ -10,6 +10,8 @@ The tests are performed in a Docker container that also works in the Windows Sub
 An NVIDIA graphics card with at least 4 GB VRAM is recommended, depending on the models used.
 CUDA is part of the Docker image, only the NVIDIA graphics driver needs to be installed.
 
+Docker must have CUDA enabled (e.g. for WSL see https://docs.nvidia.com/cuda/wsl-user-guide/index.html).
+
 ## Start as local service with Test-UI
 
 - Clone https://github.com/andrePankraz/speech_service
