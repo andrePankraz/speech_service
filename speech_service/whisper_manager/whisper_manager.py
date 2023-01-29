@@ -11,7 +11,7 @@ import sys
 import threading
 from timeit import default_timer as timer
 import torch
-# With hugging faces pipeline as Whisper abstraction:
+# With Hugging Faces transformer pipeline as Whisper abstraction:
 from transformers import pipeline  # WhisperProcessor, WhisperForConditionalGeneration
 # With original Whisper code:
 import whisper
@@ -89,7 +89,7 @@ class WhisperManager:
         # Whisper can also directly translate via parameter: task='translate'
         # but quality is much worse than NLLB
         segments = None
-        language = None
+        language: str | None = None
         if HF_WHISPER:
             # With hugging faces pipeline as abstraction - but cannot recognize language right now:
             # , language=src_lang if src_lang else None # explicit None necessary
@@ -112,7 +112,7 @@ class WhisperManager:
             with WhisperManager.lock:
                 results = self.model.transcribe(
                     audio, language=src_lang if src_lang else None)  # explicit None necessary
-            language: str | None = results['language']  # type: ignore
+            language = results['language']  # type: ignore
             segments = [WhisperSegment(id=s['id'], start=s['start'], end=s['end'], text=s['text'].strip())  # type: ignore
                         for s in results['segments']]
         log.info(f"...done in {timer() - start:.3f}s")
