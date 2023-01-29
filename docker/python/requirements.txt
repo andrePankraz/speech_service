@@ -5,5 +5,5 @@ sentence_cleaner_splitter@git+https://github.com/facebookresearch/LASER.git#subd
 shortuuid
 transformers@git+https://github.com/huggingface/transformers.git
 uvicorn
-whisper@git+https://github.com/openai/whisper.git
+git+https://github.com/openai/whisper.git
 yt-dlp

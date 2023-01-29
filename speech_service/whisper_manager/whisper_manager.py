@@ -11,6 +11,8 @@ import sys
 import threading
 from timeit import default_timer as timer
 import torch
+# With hugging faces pipeline as abstraction - but cannot recognize language:
+# from transformers import pipeline  # WhisperProcessor, WhisperForConditionalGeneration
 import whisper
 
 log = logging.getLogger(__name__)
@@ -47,8 +49,10 @@ class WhisperManager:
             # see _MODELS: tiny (40M), base (80M), small (250M), medium (800M), large (1.5B)
             # model card: https://github.com/openai/whisper/blob/main/model-card.md
             # 4 GB VRAM not enough for combining small & NLLB 600
-            model_name = 'small'
-            model_folder = os.environ.get('MODEL_FOLDER', '/opt/speech_service/models/')
+            model_id = 'small'
+
+            models_folder = os.environ.get('MODELS_FOLDER', '/opt/speech_service/models/')
+
             device = 'cpu'
             if torch.cuda.is_available():
                 log.info(f"CUDA available: {torch.cuda.get_device_name(0)}")
@@ -57,10 +61,16 @@ class WhisperManager:
                 log.info(f"VRAM available: {round(mem_info[0]/1024**3,1)} GB out of {vram} GB")
                 if (vram >= 4):
                     device = 'cuda:0'
-                    model_name = 'large' if vram >= 32 else 'medium' if vram >= 12 else 'small' if vram >= 8 else 'base'
-            model_name = 'small'
-            log.info(f"Loading model {model_name!r} in folder {model_folder!r}...")
-            self.model = whisper.load_model(model_name, device=device, download_root=model_folder)
+                    model_id = 'large-v2' if vram >= 32 else 'medium' if vram >= 12 else 'small' if vram >= 8 else 'base' if vram >= 4 else 'tiny'
+            log.info(f"Loading model {model_id!r} in folder {models_folder!r}...")
+            self.model = whisper.load_model(model_id, device=device, download_root=models_folder)
+            # With hugging faces pipeline as abstraction - but cannot recognize language:
+            # self.pipeline = pipeline(
+            #     task="automatic-speech-recognition",
+            #     model=model_id,
+            #     device=device,
+            #     chunk_length_s=30,
+            # )
             log.info("...done.")
             if device != 'cpu':
                 log.info(f"VRAM left: {round(torch.cuda.mem_get_info(0)[0]/1024**3,1)} GB")
@@ -75,9 +85,15 @@ class WhisperManager:
         # but quality is much worse than NLLB
         with WhisperManager.lock:
             results = self.model.transcribe(audio, language=src_lang if src_lang else None)  # explicit None necessary
+            # With hugging faces pipeline as abstraction - but cannot recognize language:
+            # , language=src_lang if src_lang else None # explicit None necessary
+            # results = self.pipeline(audio, return_timestamps='word')
         log.info(f"...done in {timer() - start:.3f}s")
         segments = [WhisperSegment(id=s['id'], start=s['start'], end=s['end'], text=s['text'].strip())  # type: ignore
                     for s in results['segments']]
+        # With hugging faces pipeline as abstraction - but cannot recognize language:
+        # segments = [WhisperSegment(id=i, start=s['timestamp'][0], end=s['timestamp'][1], text=s['text'].strip())
+        #             for i, s in enumerate(results['chunks'])]  # type: ignore
         return WhisperResult(language=results['language'], segments=segments)  # type: ignore
 
     def test(self) -> None:

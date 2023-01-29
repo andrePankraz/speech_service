@@ -1,4 +1,4 @@
-from whisper.tokenizer import LANGUAGES as WHISPER_LANGUAGES
+# from whisper.tokenizer import LANGUAGES as WHISPER_LANGUAGES
 
 '''
 This file was created by ]init[ AG 2022.

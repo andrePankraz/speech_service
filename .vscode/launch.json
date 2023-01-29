@@ -20,6 +20,14 @@
             "justMyCode": true
         },
         {
+            "name": "Python: Aktuelle Datei",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
             "name": "Debug Unit Test",
             "type": "python",
             "request": "test",
