@@ -36,12 +36,9 @@ class NllbManager:
         if hasattr(self, 'sentence_splitters'):
             return
         with NllbManager.lock:
+            models_folder = os.environ.get('MODELS_FOLDER', '/opt/speech_service/models/')
             # Load model NLLB
             model_id = 'facebook/nllb-200-distilled-600M'
-            # facebook/nllb-200-distilled-600M, facebook/nllb-200-distilled-1.3B, facebook/nllb-200-3.3B
-            # VRAM at least: 4 | 8 | 16 GB VRAM
-
-            models_folder = os.environ.get('MODELS_FOLDER', '/opt/speech_service/models/')
             device = 'cpu'
             if torch.cuda.is_available():
                 log.info(f"CUDA available: {torch.cuda.get_device_name(0)}")
@@ -52,6 +49,9 @@ class NllbManager:
                 if (vram >= 4):
                     device = 'cuda:0'
                     model_id = 'facebook/nllb-200-3.3B' if vram >= 32 else 'facebook/nllb-200-distilled-1.3B' if vram >= 12 else 'facebook/nllb-200-distilled-600M'
+                    # facebook/nllb-200-distilled-600M, facebook/nllb-200-distilled-1.3B, facebook/nllb-200-3.3B
+                    # VRAM at least: 4 | 8 | 16 GB VRAM
+
             log.info(f"Loading model {model_id!r} in folder {models_folder!r}...")
             self.tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=models_folder)
             self.model = AutoModelForSeq2SeqLM.from_pretrained(model_id, cache_dir=models_folder).to(device)
