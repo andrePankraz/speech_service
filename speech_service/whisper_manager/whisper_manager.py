@@ -12,7 +12,7 @@ import threading
 from timeit import default_timer as timer
 import torch
 # With Hugging Faces transformer pipeline as Whisper abstraction:
-from transformers import pipeline  # WhisperProcessor, WhisperForConditionalGeneration
+from transformers import pipeline
 # With original Whisper code:
 import whisper
 
@@ -91,21 +91,22 @@ class WhisperManager:
         segments = None
         language: str | None = None
         if HF_WHISPER:
-            # With hugging faces pipeline as abstraction - but cannot recognize language right now:
-            # , language=src_lang if src_lang else None # explicit None necessary
-            results = self.pipeline(
-                audio,
-                generate_kwargs={
-                    'task': 'transcribe',
-                    # 'language': f"<{src_lang}>"} if src_lang else ... TODO
-                },
-                return_timestamps=True,
-                chunk_length_s=30,
-                stride_length_s=[
-                    6,
-                    0],
-                batch_size=32,
-                ignore_warning=True)
+            with WhisperManager.lock:
+                # With hugging faces pipeline as abstraction - but cannot recognize language right now:
+                # lang_token = self.pipeline.model.generate(audio, max_len=2)
+                results = self.pipeline(
+                    audio,
+                    generate_kwargs={
+                        'task': 'transcribe',
+                        'language': f"<|{src_lang}|>" if src_lang else None
+                    },
+                    return_timestamps=True,
+                    chunk_length_s=30,
+                    stride_length_s=[
+                        6,
+                        0],
+                    batch_size=32,
+                    ignore_warning=True)
             segments = [WhisperSegment(id=i, start=s['timestamp'][0], end=s['timestamp'][1], text=s['text'].strip())
                         for i, s in enumerate(results['chunks'])]  # type: ignore
         else:
